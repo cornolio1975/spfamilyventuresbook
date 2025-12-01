@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Ayam Putih (H)",
+    "price": 8.6,
+    "id": 8
+  },
+  {
+    "name": "Ayam Putih (P)",
+    "price": 8.9,
+    "id": 9
+  },
+  {
+    "name": "Ayam Gajah (H)",
+    "price": 25,
+    "id": 10
+  },
+  {
+    "name": "Ayam Tua (H)",
+    "price": 6.8,
+    "id": 11
+  },
+  {
+    "name": "Ayam Kpg Jantan (H",
+    "price": 11.3,
+    "id": 12
+  },
+  {
+    "name": "Ayam Kpg Betina (H)",
+    "price": 10.5,
+    "id": 13
+  }
+]
