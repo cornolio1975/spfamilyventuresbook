@@ -1,21 +1,24 @@
 import React, { useState, useMemo } from 'react';
+import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { Calendar, TrendingUp, Users, Package, DollarSign } from 'lucide-react';
 
 export default function Reports() {
     const [dateRange, setDateRange] = useState({
-        start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-        end: new Date().toISOString().split('T')[0]
+        start: formatDateShort(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+        end: formatDateShort(new Date())
     });
     const [activeTab, setActiveTab] = useState('sales');
 
     // Fetch data
     const sales = useLiveQuery(async () => {
-        return await db.sales
+        const results = await db.sales
             .where('date')
             .between(dateRange.start, dateRange.end, true, true)
             .toArray();
+        // Sort by date descending (latest first)
+        return results.sort((a, b) => new Date(b.date) - new Date(a.date));
     }, [dateRange]);
 
     const products = useLiveQuery(() => db.products.toArray());
@@ -36,9 +39,9 @@ export default function Reports() {
         const customerStats = {};
 
         sales.forEach(sale => {
-            summary.revenue += sale.grandTotal || 0;
+            summary.revenue += sale.subtotal || 0;
             summary.paid += sale.paidAmount || 0;
-            summary.balance += (sale.grandTotal - (sale.paidAmount || 0));
+            summary.balance += ((sale.grandTotal || 0) - (sale.paidAmount || 0));
 
             // Product Aggregation
             sale.items.forEach(item => {
@@ -65,7 +68,7 @@ export default function Reports() {
                 };
             }
             customerStats[sale.customerId].count += 1;
-            customerStats[sale.customerId].total += sale.grandTotal || 0;
+            customerStats[sale.customerId].total += sale.subtotal || 0;
         });
 
         return {
@@ -162,13 +165,13 @@ export default function Reports() {
                             <tbody className="divide-y">
                                 {sales.map(sale => (
                                     <tr key={sale.id} className="hover:bg-gray-50">
-                                        <td className="p-3">{new Date(sale.date).toLocaleDateString('en-GB')}</td>
+                                        <td className="p-3">{formatDateShort(new Date(sale.date))}</td>
                                         <td className="p-3 font-medium">
                                             {customers?.find(c => c.id === sale.customerId)?.name || 'Unknown'}
                                         </td>
-                                        <td className="p-3 text-right font-bold">RM {sale.grandTotal.toFixed(2)}</td>
+                                        <td className="p-3 text-right font-bold">RM {(sale.grandTotal || 0).toFixed(2)}</td>
                                         <td className="p-3 text-right text-green-600">RM {(sale.paidAmount || 0).toFixed(2)}</td>
-                                        <td className="p-3 text-right text-red-600">RM {(sale.grandTotal - (sale.paidAmount || 0)).toFixed(2)}</td>
+                                        <td className="p-3 text-right text-red-600">RM {((sale.grandTotal || 0) - (sale.paidAmount || 0)).toFixed(2)}</td>
                                     </tr>
                                 ))}
                                 {sales.length === 0 && (

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatDate, formatDateShort } from '../utils/dateUtils';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
@@ -32,12 +33,12 @@ export default function Landing() {
 
     useEffect(() => {
         if (sales && customers && products) {
-            const today = new Date().toISOString().split('T')[0];
+            const today = formatDateShort(new Date());
             const todaySalesTotal = sales
                 .filter(s => s.date === today)
-                .reduce((sum, s) => sum + s.grandTotal, 0);
+                .reduce((sum, s) => sum + (s.subtotal || 0), 0);
 
-            const allSalesTotal = sales.reduce((sum, s) => sum + s.grandTotal, 0);
+            const allSalesTotal = sales.reduce((sum, s) => sum + (s.subtotal || 0), 0);
 
             setStats({
                 todaySales: todaySalesTotal,
@@ -81,7 +82,7 @@ export default function Landing() {
                             </div>
                         </div>
                         <div className="text-right hidden md:block">
-                            <p className="text-2xl font-bold">{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                            <p className="text-2xl font-bold">{formatDate(new Date())}</p>
                         </div>
                     </div>
 
@@ -189,13 +190,13 @@ export default function Landing() {
                                             <div>
                                                 <p className="font-medium text-gray-800">{getCustomerName(sale.customerId)}</p>
                                                 <p className="text-xs text-gray-500">
-                                                    {new Date(sale.date).toLocaleDateString()}
+                                                    {formatDateShort(new Date(sale.date))}
                                                     {sale.memo && <span className="ml-2 italic text-gray-400">- {sale.memo}</span>}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-bold text-gray-800">RM {sale.grandTotal.toFixed(2)}</p>
+                                            <p className="font-bold text-gray-800">RM {(sale.grandTotal || 0).toFixed(2)}</p>
                                             <p className="text-xs text-gray-500">Inv #{sale.id}</p>
                                         </div>
                                     </div>

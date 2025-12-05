@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { formatDateShort } from '../utils/dateUtils';
 import { useReactToPrint } from 'react-to-print';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
@@ -50,7 +51,7 @@ const InvoiceView = ({ settings, customer, saleDate, id, items, products, prevBa
                 <div className="text-left md:text-right w-full md:w-auto">
                     <h1 className="text-2xl font-bold text-gray-400 uppercase mb-1">Delivery Order / Invoice</h1>
                     <p className="text-sm font-bold text-gray-600">#INV-{displayId}</p>
-                    <p className="text-sm font-bold text-gray-600">Date: {new Date(saleDate).toLocaleDateString('en-GB')}</p>
+                    <p className="text-sm font-bold text-gray-600">Date: {formatDateShort(new Date(saleDate))}</p>
                 </div>
             </div>
 
@@ -174,7 +175,7 @@ export default function NewSale() {
     const customers = useLiveQuery(() => db.customers.toArray());
     const products = useLiveQuery(() => db.products.toArray());
 
-    const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
+    const [saleDate, setSaleDate] = useState(formatDateShort(new Date()));
     const [selectedCustomer, setSelectedCustomer] = useState('');
     const [items, setItems] = useState([]);
     const [prevBalance, setPrevBalance] = useState(0);

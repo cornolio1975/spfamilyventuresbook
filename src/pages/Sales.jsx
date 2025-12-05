@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { Plus, Search, FileText, Trash2 } from 'lucide-react';
@@ -20,7 +21,7 @@ export default function Sales() {
 
     const filteredSales = sales?.filter(s => {
         const customerName = getCustomerName(s.customerId).toLowerCase();
-        const dateStr = new Date(s.date).toLocaleDateString();
+        const dateStr = formatDateShort(new Date(s.date));
         const memo = s.memo?.toLowerCase() || '';
         return customerName.includes(searchTerm.toLowerCase()) || dateStr.includes(searchTerm) || memo.includes(searchTerm.toLowerCase());
     }) || [];
@@ -71,14 +72,14 @@ export default function Sales() {
                     <tbody className="divide-y divide-gray-100">
                         {filteredSales.map(sale => (
                             <tr key={sale.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
+                                <td className="px-4 py-3 text-sm">{formatDateShort(new Date(sale.date))}</td>
                                 <td className="px-4 py-3 font-medium">{getCustomerName(sale.customerId)}</td>
                                 <td className="px-4 py-3 text-sm text-gray-500 italic">{sale.memo || '-'}</td>
                                 <td className="px-4 py-3 text-right text-red-500 text-sm">
                                     {calculateTotalDiscount(sale.items) > 0 ? `RM ${calculateTotalDiscount(sale.items).toFixed(2)}` : '-'}
                                 </td>
                                 <td className="px-4 py-3 text-right font-bold text-green-600">
-                                    RM {sale.grandTotal?.toFixed(2)}
+                                    RM {(sale.grandTotal || 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3 text-right space-x-2">
                                     <button

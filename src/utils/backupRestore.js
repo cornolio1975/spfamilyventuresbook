@@ -1,4 +1,5 @@
 import { db } from '../db/hooks';
+import { formatDateShort } from './dateUtils';
 
 export const exportDatabase = async () => {
     try {
@@ -21,7 +22,7 @@ export const exportDatabase = async () => {
 
         const a = document.createElement('a');
         a.href = url;
-        a.download = `sp_sales_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `sp_sales_backup_${formatDateShort(new Date())}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

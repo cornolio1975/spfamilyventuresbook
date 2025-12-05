@@ -17,7 +17,7 @@ import Reports from './pages/Reports';
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename="/spfamilyventuresbook">
         <Routes>
           <Route path="/login" element={<Login />} />
 
