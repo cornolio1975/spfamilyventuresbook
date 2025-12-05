@@ -9,10 +9,12 @@ db.version(1).stores({
     products: '++id, name',
     sales: '++id, customerId, date',
     users: '++id, username', // For authentication
+    vendors: '++id, name, email', // Vendor information
+    vendorBills: '++id, vendorId, date', // Vendor bills
 });
 
 // Add hooks for sync
-['customers', 'products', 'sales', 'settings', 'users'].forEach(tableName => {
+['customers', 'products', 'sales', 'settings', 'users', 'vendors', 'vendorBills'].forEach(tableName => {
     db[tableName].hook('creating', function (primKey, obj, transaction) {
         this.onsuccess = function (id) {
             pushToCloud(tableName, { ...obj, id });

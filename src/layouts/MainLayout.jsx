@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Users, Settings, Package, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Users, Settings, Package, TrendingUp, Truck, Receipt } from 'lucide-react';
 import clsx from 'clsx';
 import { startSync } from '../firebase/sync';
 
@@ -19,6 +19,8 @@ export default function MainLayout() {
         { path: '/', icon: LayoutDashboard, label: 'Sales' },
         { path: '/products', icon: Package, label: 'Products' },
         { path: '/customers', icon: Users, label: 'Customers' },
+        { path: '/vendors', icon: Truck, label: 'Vendors' },
+        { path: '/vendor-bills', icon: Receipt, label: 'Bills' },
         { path: '/reports', icon: TrendingUp, label: 'Reports' },
         { path: '/settings', icon: Settings, label: 'Settings' },
     ];

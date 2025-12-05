@@ -8,6 +8,8 @@ import Products from './pages/Products';
 import Customers from './pages/Customers';
 import Sales from './pages/Sales';
 import NewSale from './pages/NewSale';
+import Vendors from './pages/Vendors';
+import VendorBills from './pages/VendorBills';
 
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -29,6 +31,8 @@ function App() {
               <Route path="sales/:id" element={<NewSale />} />
               <Route path="products" element={<Products />} />
               <Route path="customers" element={<Customers />} />
+              <Route path="vendors" element={<Vendors />} />
+              <Route path="vendor-bills" element={<VendorBills />} />
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />
             </Route>
