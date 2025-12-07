@@ -5,7 +5,7 @@ import { db } from '../db/db';
 import { Plus, Search, Trash2, DollarSign, Edit } from 'lucide-react';
 
 export default function VendorBills() {
-    const vendorBills = useLiveQuery(() => db.vendorBills.reverse().toArray());
+    const vendorBills = useLiveQuery(() => db.vendor_purchases.orderBy('id').reverse().toArray());
     const vendors = useLiveQuery(() => db.vendors.toArray());
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -50,31 +50,52 @@ export default function VendorBills() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            console.log('Saving vendor bill:', formData);
+
+            const vendorId = parseInt(formData.vendorId);
+            const total = parseFloat(formData.total);
+
+            if (!vendorId || isNaN(vendorId)) {
+                alert('Please select a valid vendor.');
+                return;
+            }
+
+            if (isNaN(total)) {
+                alert('Please enter a valid total amount.');
+                return;
+            }
+
+            if (!formData.date) {
+                alert('Please select a valid date.');
+                return;
+            }
+
+            const billData = {
+                vendorId: vendorId,
+                date: String(formData.date), // Ensure date is string
+                total: total,
+                memo: formData.memo
+            };
+
             if (editingBill) {
-                await db.vendorBills.update(editingBill.id, {
-                    vendorId: parseInt(formData.vendorId),
-                    date: formData.date,
-                    total: parseFloat(formData.total),
-                    memo: formData.memo
-                });
+                await db.vendor_purchases.update(editingBill.id, billData);
             } else {
-                await db.vendorBills.add({
-                    vendorId: parseInt(formData.vendorId),
-                    date: formData.date,
-                    total: parseFloat(formData.total),
-                    memo: formData.memo
-                });
+                await db.vendor_purchases.add(billData);
             }
             handleCloseModal();
         } catch (error) {
             console.error('Failed to save vendor bill:', error);
-            alert('Error saving vendor bill');
+            // Diagnostic check
+            const dbVer = db.verno;
+            const schema = db.vendor_purchases ? JSON.stringify(db.vendor_purchases.schema) : 'Table Missing';
+
+            alert(`DEBUG INFO:\nError: ${error.name} - ${error.message}\n\nDB Version: ${dbVer}\nTable Schema: ${schema}\n\nPlease send me this screenshot!`);
         }
     };
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this vendor bill?')) {
-            await db.vendorBills.delete(id);
+            await db.vendor_purchases.delete(id);
         }
     };
 

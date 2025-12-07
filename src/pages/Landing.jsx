@@ -32,10 +32,9 @@ export default function Landing() {
     const customers = useLiveQuery(() => db.customers.toArray());
     const products = useLiveQuery(() => db.products.toArray());
     const sales = useLiveQuery(() => db.sales.toArray());
-    const vendorBills = useLiveQuery(() => db.vendorBills.toArray());
 
     useEffect(() => {
-        if (sales && customers && products && vendorBills) {
+        if (sales && customers && products) {
             const today = formatDateShort(new Date());
             const todaySalesTotal = sales
                 .filter(s => s.date === today)
@@ -43,17 +42,9 @@ export default function Landing() {
 
             const allSalesTotal = sales.reduce((sum, s) => sum + (s.subtotal || 0), 0);
 
-            const todayVendorBillsTotal = vendorBills
-                .filter(b => b.date === today)
-                .reduce((sum, b) => sum + (b.total || 0), 0);
-
-            const dailyProfit = todaySalesTotal - todayVendorBillsTotal;
-
             setStats({
                 todaySales: todaySalesTotal,
                 totalSales: allSalesTotal,
-                todayVendorBills: todayVendorBillsTotal,
-                dailyProfit: dailyProfit,
                 customerCount: customers.length,
                 productCount: products.length
             });
@@ -62,7 +53,7 @@ export default function Landing() {
             const sortedSales = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
             setRecentSales(sortedSales);
         }
-    }, [sales, customers, products, vendorBills]);
+    }, [sales, customers, products]);
 
     const handleSeedData = async () => {
         if (confirm('This will populate the database with sample data. Continue?')) {
@@ -139,28 +130,8 @@ export default function Landing() {
                             <p className="text-2xl font-bold">{stats.productCount}</p>
                         </div>
 
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-red-400/20 rounded-lg">
-                                    <DollarSign size={20} className="text-red-300" />
-                                </div>
-                                <span className="text-blue-100 text-sm font-medium">Today's Vendor Bills</span>
-                            </div>
-                            <p className="text-2xl font-bold">RM {stats.todayVendorBills.toFixed(2)}</p>
-                        </div>
-
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className={`p-2 ${stats.dailyProfit >= 0 ? 'bg-green-400/20' : 'bg-red-400/20'} rounded-lg`}>
-                                    <TrendingUp size={20} className={stats.dailyProfit >= 0 ? 'text-green-300' : 'text-red-300'} />
-                                </div>
-                                <span className="text-blue-100 text-sm font-medium">Daily Net Profit</span>
-                            </div>
-                            <p className={`text-2xl font-bold ${stats.dailyProfit >= 0 ? '' : 'text-red-200'}`}>
-                                RM {stats.dailyProfit.toFixed(2)}
-                            </p>
-                        </div>
                     </div>
+
                 </div>
             </div>
 

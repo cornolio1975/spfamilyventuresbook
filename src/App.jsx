@@ -31,8 +31,7 @@ function App() {
               <Route path="sales/:id" element={<NewSale />} />
               <Route path="products" element={<Products />} />
               <Route path="customers" element={<Customers />} />
-              <Route path="vendors" element={<Vendors />} />
-              <Route path="vendor-bills" element={<VendorBills />} />
+              <Route path="customers" element={<Customers />} />
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />
             </Route>

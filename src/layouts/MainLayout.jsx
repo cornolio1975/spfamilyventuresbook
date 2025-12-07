@@ -19,8 +19,6 @@ export default function MainLayout() {
         { path: '/', icon: LayoutDashboard, label: 'Sales' },
         { path: '/products', icon: Package, label: 'Products' },
         { path: '/customers', icon: Users, label: 'Customers' },
-        { path: '/vendors', icon: Truck, label: 'Vendors' },
-        { path: '/vendor-bills', icon: Receipt, label: 'Bills' },
         { path: '/reports', icon: TrendingUp, label: 'Reports' },
         { path: '/settings', icon: Settings, label: 'Settings' },
     ];

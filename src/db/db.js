@@ -3,18 +3,20 @@ import { pushToCloud, deleteFromCloud } from '../firebase/sync';
 
 export const db = new Dexie('SPFamilyVenturesDB');
 
-db.version(1).stores({
+// Bumped to version 6 to add customer payments
+db.version(6).stores({
     settings: '++id', // Singleton for company settings
     customers: '++id, name, email',
     products: '++id, name',
     sales: '++id, customerId, date',
     users: '++id, username', // For authentication
     vendors: '++id, name, email', // Vendor information
-    vendorBills: '++id, vendorId, date', // Vendor bills
+    vendor_purchases: '++id', // Schema without secondary indices to prevent key errors
+    payments: '++id, customerId, date', // Customer payments
 });
 
 // Add hooks for sync
-['customers', 'products', 'sales', 'settings', 'users', 'vendors', 'vendorBills'].forEach(tableName => {
+['customers', 'products', 'sales', 'settings', 'users', 'vendors', 'vendor_purchases', 'payments'].forEach(tableName => {
     db[tableName].hook('creating', function (primKey, obj, transaction) {
         this.onsuccess = function (id) {
             pushToCloud(tableName, { ...obj, id });

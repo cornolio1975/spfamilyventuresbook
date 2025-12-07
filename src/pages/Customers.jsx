@@ -1,17 +1,28 @@
 import React, { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { Plus, Edit, Trash2, Upload, Download, Search, Phone, Mail, MapPin } from 'lucide-react';
+import { formatDateShort } from '../utils/dateUtils';
+import { Plus, Edit, Trash2, Upload, Download, Search, Phone, Mail, MapPin, DollarSign, Wallet } from 'lucide-react';
 
 export default function Customers() {
     const customers = useLiveQuery(() => db.customers.toArray());
+    const sales = useLiveQuery(() => db.sales.toArray());
+    const payments = useLiveQuery(() => db.payments.toArray());
+
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const fileInputRef = useRef(null);
 
     // Form State
     const [formData, setFormData] = useState({ name: '', contact: '', email: '', address: '' });
+    const [paymentData, setPaymentData] = useState({
+        customerId: '',
+        date: formatDateShort(new Date()),
+        amount: '',
+        memo: ''
+    });
 
     const handleOpenModal = (customer = null) => {
         if (customer) {
@@ -46,6 +57,51 @@ export default function Customers() {
         } catch (error) {
             console.error('Failed to save customer:', error);
             alert('Error saving customer');
+        }
+    };
+
+    const handleOpenPaymentModal = () => {
+        setPaymentData({
+            customerId: '',
+            date: formatDateShort(new Date()),
+            amount: '',
+            memo: ''
+        });
+        setIsPaymentModalOpen(true);
+    };
+
+    const handlePaymentSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            const amount = parseFloat(paymentData.amount);
+            if (!paymentData.customerId) {
+                alert('Please select a customer');
+                return;
+            }
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount');
+                return;
+            }
+
+            // Save customerId as is (string or number matches the ID type)
+            // But we must ensure it matches the customer.id type.
+            // For now, let's rely on flexible comparison in view, but try to keep it clean in DB.
+            // If customer.id is number, we should ideally save number.
+            // Let's find the customer object to get the real ID type
+            const customer = customers.find(c => String(c.id) === String(paymentData.customerId));
+            const realId = customer ? customer.id : paymentData.customerId;
+
+            await db.payments.add({
+                customerId: realId,
+                date: paymentData.date,
+                amount: amount,
+                memo: paymentData.memo
+            });
+            setIsPaymentModalOpen(false);
+            alert('Payment recorded successfully!');
+        } catch (error) {
+            console.error('Failed to save payment:', error);
+            alert(`Error saving payment: ${error.message}`);
         }
     };
 
@@ -90,6 +146,18 @@ export default function Customers() {
         e.target.value = null; // Reset input
     };
 
+    const calculateOutstanding = (customerId) => {
+        if (!sales || !payments) return 0;
+
+        const customerSales = sales.filter(s => String(s.customerId) === String(customerId));
+        const customerPayments = payments.filter(p => String(p.customerId) === String(customerId));
+
+        const totalSales = customerSales.reduce((sum, s) => sum + (parseFloat(s.grandTotal) || 0), 0);
+        const totalPayments = customerPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+        return totalSales - totalPayments;
+    };
+
     const filteredCustomers = customers?.filter(c =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.contact.includes(searchTerm)
@@ -118,6 +186,12 @@ export default function Customers() {
                         className="flex items-center gap-1 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                     >
                         <Download size={16} /> Export
+                    </button>
+                    <button
+                        onClick={handleOpenPaymentModal}
+                        className="flex items-center gap-1 px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                    >
+                        <Wallet size={16} /> Receive Payment
                     </button>
                     <button
                         onClick={() => handleOpenModal()}
@@ -179,6 +253,12 @@ export default function Customers() {
                                     <span className="flex-1">{customer.address}</span>
                                 </div>
                             )}
+                            <div className="pt-2 mt-2 border-t border-gray-100 flex justify-between items-center">
+                                <span className="text-xs font-medium text-gray-500">Outstanding:</span>
+                                <span className={`font-bold ${calculateOutstanding(customer.id) > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                    RM {calculateOutstanding(customer.id).toFixed(2)}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -247,6 +327,86 @@ export default function Customers() {
                                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                                 >
                                     Save
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Payment Modal */}
+            {isPaymentModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+                        <div className="flex items-center gap-2 mb-4 text-green-700">
+                            <Wallet size={24} />
+                            <h2 className="text-xl font-bold">Receive Payment</h2>
+                        </div>
+                        <form onSubmit={handlePaymentSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+                                <select
+                                    required
+                                    value={paymentData.customerId}
+                                    onChange={(e) => setPaymentData({ ...paymentData, customerId: e.target.value })}
+                                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                >
+                                    <option value="">Select Customer</option>
+                                    {customers?.map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.name} (Outstanding: RM {calculateOutstanding(c.id).toFixed(2)})
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={paymentData.date}
+                                    onChange={(e) => setPaymentData({ ...paymentData, date: e.target.value })}
+                                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (RM)</label>
+                                <div className="relative">
+                                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        required
+                                        value={paymentData.amount}
+                                        onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
+                                        className="w-full pl-10 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Memo (Optional)</label>
+                                <textarea
+                                    value={paymentData.memo}
+                                    onChange={(e) => setPaymentData({ ...paymentData, memo: e.target.value })}
+                                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                    rows="2"
+                                    placeholder="Payment method, ref no, etc."
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPaymentModalOpen(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                    Save Payment
                                 </button>
                             </div>
                         </form>
