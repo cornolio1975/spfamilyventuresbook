@@ -12,7 +12,8 @@ const syncCollectionToLocal = async (collectionName) => {
         const changes = snapshot.docChanges();
         if (changes.length === 0) return;
 
-        await localDb.transaction('rw', localDb[collectionName], async () => {
+        await localDb.transaction('rw', localDb[collectionName], async (tx) => {
+            tx.source = 'firebase-sync';
             for (const change of changes) {
                 const data = change.doc.data();
                 // Ensure ID is preserved

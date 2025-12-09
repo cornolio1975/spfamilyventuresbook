@@ -18,11 +18,13 @@ db.version(6).stores({
 // Add hooks for sync
 ['customers', 'products', 'sales', 'settings', 'users', 'vendors', 'vendor_purchases', 'payments'].forEach(tableName => {
     db[tableName].hook('creating', function (primKey, obj, transaction) {
+        if (transaction && transaction.source === 'firebase-sync') return;
         this.onsuccess = function (id) {
             pushToCloud(tableName, { ...obj, id });
         };
     });
     db[tableName].hook('updating', function (mods, primKey, obj, transaction) {
+        if (transaction && transaction.source === 'firebase-sync') return;
         // mods contains only modified properties. We might want the full object.
         // But pushToCloud uses setDoc which merges if we use { merge: true } or overwrites.
         // My sync.js implementation uses setDoc(docRef, data). This overwrites!
@@ -31,6 +33,7 @@ db.version(6).stores({
         pushToCloud(tableName, updatedObj);
     });
     db[tableName].hook('deleting', function (primKey, obj, transaction) {
+        if (transaction && transaction.source === 'firebase-sync') return;
         deleteFromCloud(tableName, primKey);
     });
 });
