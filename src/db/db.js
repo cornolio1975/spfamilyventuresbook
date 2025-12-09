@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { pushToCloud, deleteFromCloud } from '../firebase/sync';
+import { pushToCloud, deleteFromCloud } from '../firebase/operations';
 
 export const db = new Dexie('SPFamilyVenturesDB');
 
