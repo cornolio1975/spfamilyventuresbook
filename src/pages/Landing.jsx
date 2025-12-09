@@ -12,7 +12,8 @@ import {
     DollarSign,
     Calendar,
     ArrowRight,
-    Database
+    Database,
+    Receipt
 } from 'lucide-react';
 
 export default function Landing() {
@@ -20,9 +21,9 @@ export default function Landing() {
     const settings = useSettings();
     const [stats, setStats] = useState({
         todaySales: 0,
-        totalSales: 0,
-        todayVendorBills: 0,
-        dailyProfit: 0,
+        todayBills: 0,
+        netProfit: 0,
+        totalRevenue: 0,
         customerCount: 0,
         productCount: 0
     });
@@ -32,19 +33,32 @@ export default function Landing() {
     const customers = useLiveQuery(() => db.customers.toArray());
     const products = useLiveQuery(() => db.products.toArray());
     const sales = useLiveQuery(() => db.sales.toArray());
+    const vendorBills = useLiveQuery(() => db.vendor_purchases.toArray());
 
     useEffect(() => {
-        if (sales && customers && products) {
+        if (sales && customers && products && vendorBills) {
             const today = formatDateShort(new Date());
+
+            // 1. Calculate Today's Sales
             const todaySalesTotal = sales
                 .filter(s => s.date === today)
-                .reduce((sum, s) => sum + (s.subtotal || 0), 0);
+                .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
 
-            const allSalesTotal = sales.reduce((sum, s) => sum + (s.subtotal || 0), 0);
+            // 2. Calculate Today's Vendor Bills
+            const todayBillsTotal = vendorBills
+                .filter(bill => bill.date === today)
+                .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
+
+            // 3. Calculate Net Profit
+            const netProfitTotal = todaySalesTotal - todayBillsTotal;
+
+            const allSalesTotal = sales.reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
 
             setStats({
                 todaySales: todaySalesTotal,
-                totalSales: allSalesTotal,
+                todayBills: todayBillsTotal,
+                netProfit: netProfitTotal,
+                totalRevenue: allSalesTotal,
                 customerCount: customers.length,
                 productCount: products.length
             });
@@ -53,7 +67,7 @@ export default function Landing() {
             const sortedSales = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
             setRecentSales(sortedSales);
         }
-    }, [sales, customers, products]);
+    }, [sales, customers, products, vendorBills]);
 
     const handleSeedData = async () => {
         if (confirm('This will populate the database with sample data. Continue?')) {
@@ -100,6 +114,30 @@ export default function Landing() {
                             <p className="text-2xl font-bold">RM {stats.todaySales.toFixed(2)}</p>
                         </div>
 
+                        {/* Today's Vendor Bills - Red/Orange for expense */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-orange-400/20 rounded-lg">
+                                    <Receipt size={20} className="text-orange-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Today's Vendor Bills</span>
+                            </div>
+                            <p className="text-2xl font-bold">RM {stats.todayBills.toFixed(2)}</p>
+                        </div>
+
+                        {/* Daily Net Profit - Green for profit */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-green-400/20 rounded-lg">
+                                    <DollarSign size={20} className="text-green-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Daily Net Profit</span>
+                            </div>
+                            <p className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
+                                RM {stats.netProfit.toFixed(2)}
+                            </p>
+                        </div>
+
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-400/20 rounded-lg">
@@ -107,7 +145,7 @@ export default function Landing() {
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Total Revenue</span>
                             </div>
-                            <p className="text-2xl font-bold">RM {stats.totalSales.toFixed(2)}</p>
+                            <p className="text-2xl font-bold">RM {stats.totalRevenue.toFixed(2)}</p>
                         </div>
 
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">

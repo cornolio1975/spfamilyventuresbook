@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { formatDateShort } from '../utils/dateUtils';
-import { Plus, Edit, Trash2, Upload, Download, Search, Phone, Mail, MapPin, DollarSign, Wallet } from 'lucide-react';
+import { Plus, Edit, Trash2, Upload, Download, Search, Phone, Mail, MapPin, DollarSign, Wallet, History } from 'lucide-react';
 
 export default function Customers() {
     const customers = useLiveQuery(() => db.customers.toArray());
@@ -11,6 +11,9 @@ export default function Customers() {
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+    const [viewingCustomer, setViewingCustomer] = useState(null);
+    const [editingPayment, setEditingPayment] = useState(null);
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const fileInputRef = useRef(null);
@@ -60,13 +63,26 @@ export default function Customers() {
         }
     };
 
-    const handleOpenPaymentModal = () => {
-        setPaymentData({
-            customerId: '',
-            date: formatDateShort(new Date()),
-            amount: '',
-            memo: ''
-        });
+    const handleOpenPaymentModal = (customer = null, payment = null) => {
+        if (payment) {
+            // Edit Mode
+            setEditingPayment(payment);
+            setPaymentData({
+                customerId: payment.customerId,
+                date: payment.date,
+                amount: payment.amount,
+                memo: payment.memo || ''
+            });
+        } else {
+            // New Payment Mode
+            setEditingPayment(null);
+            setPaymentData({
+                customerId: customer ? customer.id : '',
+                date: formatDateShort(new Date()),
+                amount: '',
+                memo: ''
+            });
+        }
         setIsPaymentModalOpen(true);
     };
 
@@ -83,26 +99,44 @@ export default function Customers() {
                 return;
             }
 
-            // Save customerId as is (string or number matches the ID type)
-            // But we must ensure it matches the customer.id type.
-            // For now, let's rely on flexible comparison in view, but try to keep it clean in DB.
-            // If customer.id is number, we should ideally save number.
-            // Let's find the customer object to get the real ID type
+            // Ensure ID type consistency
             const customer = customers.find(c => String(c.id) === String(paymentData.customerId));
             const realId = customer ? customer.id : paymentData.customerId;
 
-            await db.payments.add({
-                customerId: realId,
-                date: paymentData.date,
-                amount: amount,
-                memo: paymentData.memo
-            });
+            if (editingPayment) {
+                await db.payments.update(editingPayment.id, {
+                    customerId: realId,
+                    date: paymentData.date,
+                    amount: amount,
+                    memo: paymentData.memo
+                });
+                alert('Payment updated successfully!');
+            } else {
+                await db.payments.add({
+                    customerId: realId,
+                    date: paymentData.date,
+                    amount: amount,
+                    memo: paymentData.memo
+                });
+                alert('Payment recorded successfully!');
+            }
             setIsPaymentModalOpen(false);
-            alert('Payment recorded successfully!');
+            setEditingPayment(null);
         } catch (error) {
             console.error('Failed to save payment:', error);
             alert(`Error saving payment: ${error.message}`);
         }
+    };
+
+    const handleDeletePayment = async (id) => {
+        if (window.confirm('Are you sure you want to delete this payment?')) {
+            await db.payments.delete(id);
+        }
+    };
+
+    const handleOpenHistory = (customer) => {
+        setViewingCustomer(customer);
+        setIsHistoryModalOpen(true);
     };
 
     const handleDelete = async (id) => {
@@ -152,10 +186,29 @@ export default function Customers() {
         const customerSales = sales.filter(s => String(s.customerId) === String(customerId));
         const customerPayments = payments.filter(p => String(p.customerId) === String(customerId));
 
-        const totalSales = customerSales.reduce((sum, s) => sum + (parseFloat(s.grandTotal) || 0), 0);
+        // Sort by date then ID to find the very first invoice
+        const sortedSales = [...customerSales].sort((a, b) => {
+            const dateA = new Date(a.date);
+            const dateB = new Date(b.date);
+            if (dateA - dateB !== 0) return dateA - dateB;
+            return a.id - b.id;
+        });
+
+        const firstSale = sortedSales[0];
+        const initialBalance = firstSale ? (parseFloat(firstSale.prevBalance) || 0) : 0;
+
+        const totalSales = customerSales.reduce((sum, s) => {
+            // Defensive: if subtotal missing, derive from grandTotal - prevBalance
+            let saleAmount = s.subtotal;
+            if (saleAmount === undefined || saleAmount === null) {
+                saleAmount = (parseFloat(s.grandTotal) || 0) - (parseFloat(s.prevBalance) || 0);
+            }
+            return sum + (parseFloat(saleAmount) || 0);
+        }, 0);
+
         const totalPayments = customerPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
 
-        return totalSales - totalPayments;
+        return (totalSales + initialBalance) - totalPayments;
     };
 
     const filteredCustomers = customers?.filter(c =>
@@ -221,6 +274,13 @@ export default function Customers() {
                         <div className="flex justify-between items-start mb-2">
                             <h3 className="font-semibold text-lg text-gray-800">{customer.name}</h3>
                             <div className="flex gap-1">
+                                <button
+                                    onClick={() => handleOpenHistory(customer)}
+                                    className="text-gray-600 hover:text-gray-800 p-1"
+                                    title="View History"
+                                >
+                                    <History size={16} />
+                                </button>
                                 <button
                                     onClick={() => handleOpenModal(customer)}
                                     className="text-blue-600 hover:text-blue-800 p-1"
@@ -340,7 +400,7 @@ export default function Customers() {
                     <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
                         <div className="flex items-center gap-2 mb-4 text-green-700">
                             <Wallet size={24} />
-                            <h2 className="text-xl font-bold">Receive Payment</h2>
+                            <h2 className="text-xl font-bold">{editingPayment ? 'Edit Payment' : 'Receive Payment'}</h2>
                         </div>
                         <form onSubmit={handlePaymentSubmit} className="space-y-4">
                             <div>
@@ -350,6 +410,7 @@ export default function Customers() {
                                     value={paymentData.customerId}
                                     onChange={(e) => setPaymentData({ ...paymentData, customerId: e.target.value })}
                                     className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                                    disabled={!!editingPayment && !paymentData.customerId} // Allow changing if fixing bad data, but generally stable
                                 >
                                     <option value="">Select Customer</option>
                                     {customers?.map(c => (
@@ -397,7 +458,7 @@ export default function Customers() {
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
                                     type="button"
-                                    onClick={() => setIsPaymentModalOpen(false)}
+                                    onClick={() => { setIsPaymentModalOpen(false); setEditingPayment(null); }}
                                     className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
                                 >
                                     Cancel
@@ -406,10 +467,107 @@ export default function Customers() {
                                     type="submit"
                                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                                 >
-                                    Save Payment
+                                    {editingPayment ? 'Update Payment' : 'Save Payment'}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* History Modal */}
+            {isHistoryModalOpen && viewingCustomer && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 max-h-[90vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-6">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-800">Transaction History</h2>
+                                <p className="text-sm text-gray-600">{viewingCustomer.name}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-gray-500">Current Outstanding</p>
+                                <p className={`text-xl font-bold ${calculateOutstanding(viewingCustomer.id) > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                    RM {calculateOutstanding(viewingCustomer.id).toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="overflow-auto flex-1 -mx-6 px-6">
+                            <table className="w-full text-sm">
+                                <thead className="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th className="text-left py-3 px-2 font-medium text-gray-600">Date</th>
+                                        <th className="text-left py-3 px-2 font-medium text-gray-600">Type</th>
+                                        <th className="text-left py-3 px-2 font-medium text-gray-600">Reference / Memo</th>
+                                        <th className="text-right py-3 px-2 font-medium text-gray-600">Amount (RM)</th>
+                                        <th className="text-center py-3 px-2 font-medium text-gray-600">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {/* Combine Sales and Payments */}
+                                    {[
+                                        ...(sales?.filter(s => String(s.customerId) === String(viewingCustomer.id)).map(s => ({ ...s, type: 'SALE' })) || []),
+                                        ...(payments?.filter(p => String(p.customerId) === String(viewingCustomer.id)).map(p => ({ ...p, type: 'PAYMENT' })) || [])
+                                    ]
+                                        .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                        .map((item) => (
+                                            <tr key={`${item.type}-${item.id}`} className="hover:bg-gray-50">
+                                                <td className="py-3 px-2 text-gray-800">{formatDateShort(new Date(item.date))}</td>
+                                                <td className="py-3 px-2">
+                                                    <span className={`px-2 py-1 rounded text-xs font-medium ${item.type === 'SALE' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                                        {item.type}
+                                                    </span>
+                                                </td>
+                                                <td className="py-3 px-2 text-gray-600">
+                                                    {item.type === 'SALE' ? `Invoice #${item.id}` : (item.memo || '-')}
+                                                    {item.type === 'SALE' && item.memo && <span className="block text-xs text-gray-400 italic">{item.memo}</span>}
+                                                </td>
+                                                <td className={`py-3 px-2 text-right font-medium ${item.type === 'SALE' ? 'text-gray-800' : 'text-green-600'}`}>
+                                                    {item.type === 'SALE' ? (item.subtotal || 0).toFixed(2) : (item.amount || 0).toFixed(2)}
+                                                </td>
+                                                <td className="py-3 px-2 text-center">
+                                                    {item.type === 'PAYMENT' && (
+                                                        <div className="flex justify-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setIsHistoryModalOpen(false);
+                                                                    handleOpenPaymentModal(null, item);
+                                                                }}
+                                                                className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeletePayment(item.id)}
+                                                                className="text-red-600 hover:text-red-800 text-xs font-medium"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    {(!sales?.some(s => String(s.customerId) === String(viewingCustomer?.id)) &&
+                                        !payments?.some(p => String(p.customerId) === String(viewingCustomer?.id))) && (
+                                            <tr>
+                                                <td colSpan="5" className="py-8 text-center text-gray-400">
+                                                    No transactions found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div className="flex justify-end mt-6 pt-4 border-t border-gray-100">
+                            <button
+                                onClick={() => setIsHistoryModalOpen(false)}
+                                className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+                            >
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

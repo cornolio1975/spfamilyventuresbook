@@ -10,11 +10,11 @@ import Sales from './pages/Sales';
 import NewSale from './pages/NewSale';
 import Vendors from './pages/Vendors';
 import VendorBills from './pages/VendorBills';
+import Reports from './pages/Reports';
 
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
-import Reports from './pages/Reports';
 
 function App() {
   return (
@@ -31,7 +31,8 @@ function App() {
               <Route path="sales/:id" element={<NewSale />} />
               <Route path="products" element={<Products />} />
               <Route path="customers" element={<Customers />} />
-              <Route path="customers" element={<Customers />} />
+              <Route path="vendors" element={<Vendors />} />
+              <Route path="vendor-bills" element={<VendorBills />} />
               <Route path="reports" element={<Reports />} />
               <Route path="settings" element={<Settings />} />
             </Route>

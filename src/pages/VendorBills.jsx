@@ -22,7 +22,8 @@ export default function VendorBills() {
     };
 
     const handleOpenModal = (bill = null) => {
-        if (bill) {
+        // Fix: Ensure we don't treat the click event as a bill object
+        if (bill && bill.id) {
             setEditingBill(bill);
             setFormData({
                 vendorId: bill.vendorId,
