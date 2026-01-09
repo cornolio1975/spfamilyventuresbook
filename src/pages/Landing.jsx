@@ -52,7 +52,10 @@ export default function Landing() {
             // 3. Calculate Net Profit
             const netProfitTotal = todaySalesTotal - todayBillsTotal;
 
-            const allSalesTotal = sales.reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
+            const currentYear = new Date().getFullYear();
+            const allSalesTotal = sales
+                .filter(s => new Date(s.date).getFullYear() === currentYear)
+                .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
 
             setStats({
                 todaySales: todaySalesTotal,

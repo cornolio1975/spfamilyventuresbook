@@ -9,7 +9,7 @@ export default function Reports() {
         start: formatDateShort(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
         end: formatDateShort(new Date())
     });
-    const [activeTab, setActiveTab] = useState('sales');
+    const [activeTab, setActiveTab] = useState('sales'); // options: 'sales', 'products', 'customers', 'daily'
 
     // Fetch data
     const sales = useLiveQuery(async () => {
@@ -23,6 +23,7 @@ export default function Reports() {
 
     const products = useLiveQuery(() => db.products.toArray());
     const customers = useLiveQuery(() => db.customers.toArray());
+    const vendorBills = useLiveQuery(() => db.vendor_purchases.toArray());
 
     // Aggregation Logic
     const stats = useMemo(() => {
@@ -77,6 +78,34 @@ export default function Reports() {
             customers: Object.values(customerStats).sort((a, b) => b.total - a.total)
         };
     }, [sales, products, customers]);
+
+    // Daily summary aggregation
+    const dailyStats = useMemo(() => {
+        if (!sales || !vendorBills) return null;
+        // Helper to format date string (YYYY-MM-DD)
+        const formatKey = (dateStr) => new Date(dateStr).toISOString().split('T')[0];
+        const dailyMap = {};
+        // Aggregate sales per day
+        sales.forEach(sale => {
+            const key = formatKey(sale.date);
+            if (!dailyMap[key]) dailyMap[key] = { sales: 0, vendorBills: 0 };
+            dailyMap[key].sales += sale.subtotal || 0;
+        });
+        // Aggregate vendor bills per day
+        vendorBills.forEach(bill => {
+            const key = formatKey(bill.date);
+            if (!dailyMap[key]) dailyMap[key] = { sales: 0, vendorBills: 0 };
+            dailyMap[key].vendorBills += bill.total || 0;
+        });
+        // Convert to array sorted by date descending
+        const result = Object.entries(dailyMap).map(([date, data]) => ({
+            date,
+            sales: data.sales,
+            vendorBills: data.vendorBills,
+            netProfit: data.sales - data.vendorBills
+        })).sort((a, b) => new Date(b.date) - new Date(a.date));
+        return result;
+    }, [sales, vendorBills]);
 
     if (!stats) return <div className="p-8 text-center">Loading reports...</div>;
 
@@ -146,6 +175,12 @@ export default function Reports() {
                 >
                     <Users size={16} /> Customers
                 </button>
+                <button
+                    onClick={() => setActiveTab('daily')}
+                    className={`px-4 py-2 font-medium text-sm flex items-center gap-2 ${activeTab === 'daily' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    <Calendar size={16} /> Daily Summary
+                </button>
             </div>
 
             {/* Content */}
@@ -177,6 +212,35 @@ export default function Reports() {
                                 {sales.length === 0 && (
                                     <tr>
                                         <td colSpan="5" className="p-8 text-center text-gray-500">No sales found in this period.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+                {activeTab === 'daily' && dailyStats && (
+                    <div className="overflow-x-auto mt-6">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                <tr>
+                                    <th className="p-3">Date</th>
+                                    <th className="p-3 text-right">Vendor Bills (RM)</th>
+                                    <th className="p-3 text-right">Sales (RM)</th>
+                                    <th className="p-3 text-right">Net Profit (RM)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {dailyStats.map(day => (
+                                    <tr key={day.date} className="hover:bg-gray-50">
+                                        <td className="p-3">{day.date}</td>
+                                        <td className="p-3 text-right">RM {day.vendorBills.toFixed(2)}</td>
+                                        <td className="p-3 text-right">RM {day.sales.toFixed(2)}</td>
+                                        <td className="p-3 text-right font-bold text-green-700">RM {day.netProfit.toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                                {dailyStats.length === 0 && (
+                                    <tr>
+                                        <td colSpan="4" className="p-8 text-center text-gray-500">No data for selected date range.</td>
                                     </tr>
                                 )}
                             </tbody>

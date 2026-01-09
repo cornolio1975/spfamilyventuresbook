@@ -4,6 +4,8 @@ import { seedDatabase, clearDatabase } from '../utils/seedData';
 import { Save, Upload, Database, Trash2, Download, User, Lock } from 'lucide-react';
 import { exportDatabase, importDatabase } from '../utils/backupRestore';
 import { useAuth } from '../context/AuthContext';
+import { doc, setDoc } from 'firebase/firestore';
+import { db as firestoreDb } from '../firebase/config';
 
 export default function Settings() {
     const currentSettings = useSettings();
@@ -288,9 +290,7 @@ export default function Settings() {
                         <button
                             onClick={async () => {
                                 try {
-                                    const { doc, setDoc } = await import('firebase/firestore');
-                                    const { db } = await import('../firebase/config');
-                                    await setDoc(doc(db, '_connection_test', 'test'), {
+                                    await setDoc(doc(firestoreDb, '_connection_test', 'test'), {
                                         timestamp: new Date().toISOString(),
                                         device: navigator.userAgent
                                     });
