@@ -5,6 +5,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, X } from 'lucide-react';
+import logo from '../assets/logo.jpg';
+import poultryLogo from '../assets/poultry_logo.jpg';
 
 
 const InvoiceView = ({ settings, customer, saleDate, id, items, products, prevBalance, prevBalanceMemo, subtotal, paidAmount, grandTotal }) => {
@@ -22,7 +24,7 @@ const InvoiceView = ({ settings, customer, saleDate, id, items, products, prevBa
             <div className="flex flex-col md:flex-row print:flex-row justify-between items-center md:items-start print:items-start mb-8 border-b-2 border-gray-100 pb-6 gap-4">
                 {/* Left Logo */}
                 <div className="w-40 h-40 flex-shrink-0">
-                    {settings.logoLeft && <img src={settings.logoLeft} alt="Logo" className="w-full h-full object-contain" />}
+                    <img src={logo} alt="Logo" className="w-full h-full object-contain" />
                 </div>
 
                 {/* Center Details */}
@@ -36,7 +38,7 @@ const InvoiceView = ({ settings, customer, saleDate, id, items, products, prevBa
 
                 {/* Right Logo */}
                 <div className="w-40 h-40 flex-shrink-0 hidden md:block print:block">
-                    {settings.logoRight && <img src={settings.logoRight} alt="Poultry" className="w-full h-full object-contain" />}
+                    <img src={poultryLogo} alt="Poultry" className="w-full h-full object-contain" />
                 </div>
             </div>
 

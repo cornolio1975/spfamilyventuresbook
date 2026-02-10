@@ -15,6 +15,8 @@ import {
     Database,
     Receipt
 } from 'lucide-react';
+import logo from '../assets/logo.jpg';
+import poultryLogo from '../assets/poultry_logo.jpg';
 
 export default function Landing() {
     const navigate = useNavigate();
@@ -24,6 +26,7 @@ export default function Landing() {
         todayBills: 0,
         netProfit: 0,
         totalRevenue: 0,
+        monthlySales: 0,
         customerCount: 0,
         productCount: 0
     });
@@ -53,8 +56,17 @@ export default function Landing() {
             const netProfitTotal = todaySalesTotal - todayBillsTotal;
 
             const currentYear = new Date().getFullYear();
+            const currentMonth = new Date().getMonth();
+
             const allSalesTotal = sales
                 .filter(s => new Date(s.date).getFullYear() === currentYear)
+                .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
+
+            const monthlySalesTotal = sales
+                .filter(s => {
+                    const saleDate = new Date(s.date);
+                    return saleDate.getFullYear() === currentYear && saleDate.getMonth() === currentMonth;
+                })
                 .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
 
             setStats({
@@ -62,6 +74,7 @@ export default function Landing() {
                 todayBills: todayBillsTotal,
                 netProfit: netProfitTotal,
                 totalRevenue: allSalesTotal,
+                monthlySales: monthlySalesTotal,
                 customerCount: customers.length,
                 productCount: products.length
             });
@@ -90,18 +103,21 @@ export default function Landing() {
                 <div className="max-w-5xl mx-auto">
                     <div className="flex justify-between items-center mb-8">
                         <div className="flex items-center gap-5">
-                            {settings.logoLeft && (
-                                <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-xl flex items-center justify-center">
-                                    <img src={settings.logoLeft} alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
-                                </div>
-                            )}
+                            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-xl flex items-center justify-center">
+                                <img src={logo} alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
+                            </div>
                             <div>
                                 <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm">{settings.companyName || 'Welcome Back!'}</h1>
                                 <p className="text-blue-100 mt-1 font-medium opacity-90">Dashboard Overview</p>
                             </div>
                         </div>
-                        <div className="text-right hidden md:block">
-                            <p className="text-2xl font-bold">{formatDate(new Date())}</p>
+                        <div className="flex items-center gap-4">
+                            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-xl flex items-center justify-center hidden md:flex">
+                                <img src={poultryLogo} alt="Poultry Logo" className="w-full h-full object-contain drop-shadow-md" />
+                            </div>
+                            <div className="text-right hidden md:block">
+                                <p className="text-2xl font-bold">{formatDate(new Date())}</p>
+                            </div>
                         </div>
                     </div>
 
@@ -140,6 +156,17 @@ export default function Landing() {
                                 RM {stats.netProfit.toFixed(2)}
                             </p>
                         </div>
+
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-blue-400/20 rounded-lg">
+                                    <TrendingUp size={20} className="text-blue-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Monthly Sales</span>
+                            </div>
+                            <p className="text-2xl font-bold">RM {stats.monthlySales.toFixed(2)}</p>
+                        </div>
+
 
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
