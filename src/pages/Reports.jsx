@@ -25,8 +25,6 @@ export default function Reports() {
         return results.sort((a, b) => new Date(b.date) - new Date(a.date));
     }, [dateRange]);
 
-
-
     const products = useLiveQuery(() => db.products.toArray());
     const customers = useLiveQuery(() => db.customers.toArray());
     const vendorBills = useLiveQuery(() => db.vendor_purchases.toArray());
@@ -131,30 +129,27 @@ export default function Reports() {
 
     // Calculate All-Time Outstanding Balance
     const currentOutstanding = useMemo(() => {
-        if (!customerRecords) return 0;
+        if (!customerRecords || !customerRecords.sales) return 0;
 
-        // Use logic similar to Customers.jsx
-        // Find initial balance from the first ever sale if it exists (optional, keeping simple for now based on data)
-        // Or just sum(grandTotal) - sum(payments)
+        const { sales: allSales, payments: allPayments } = customerRecords;
 
-        // Note: Customers.jsx logic was:
-        // totalSales = sum(grandTotal || (subtotal + prevBalance?)) -> simpler: grandTotal is approximately what we want if it includes everything.
-        // Actually, looking at Customers.jsx: calculateOutstanding uses grandTotal.
-
-        const totalSales = customerRecords.sales.reduce((sum, s) => sum + (parseFloat(s.grandTotal) || 0), 0);
-        const totalPayments = customerRecords.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-
-        // Check if there's an initial balance from the very first sale (if migrated)
-        // For simplicity, assuming grandTotal covers it or we strictly sum debits vs credits.
-        // If we want to be exact with Customers.jsx:
-        /*
-        const sortedSales = [...customerRecords.sales].sort((a, b) => new Date(a.date) - new Date(b.date));
+        // Sort by date to find the very first sale (to get initial previous balance)
+        const sortedSales = [...allSales].sort((a, b) => new Date(a.date) - new Date(b.date));
         const firstSale = sortedSales[0];
         const initialBalance = firstSale ? (parseFloat(firstSale.prevBalance) || 0) : 0;
-        return (totalSales + initialBalance) - totalPayments;
-        */
-        // Simplified for this report unless user complains about migrated balances:
-        return totalSales - totalPayments;
+
+        const totalSalesBody = allSales.reduce((sum, s) => {
+            // Use subtotal if available, otherwise derive it
+            let saleAmount = parseFloat(s.subtotal);
+            if (isNaN(saleAmount)) {
+                saleAmount = (parseFloat(s.grandTotal) || 0) - (parseFloat(s.prevBalance) || 0);
+            }
+            return sum + saleAmount;
+        }, 0);
+
+        const totalPayments = allPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+        return (totalSalesBody + initialBalance) - totalPayments;
     }, [customerRecords]);
 
     // Filter History for Display based on Date Range
@@ -167,19 +162,29 @@ export default function Reports() {
         const filteredSales = allSales.filter(s => s.date >= dateRange.start && s.date <= dateRange.end);
         const filteredPayments = allPayments.filter(p => p.date >= dateRange.start && p.date <= dateRange.end);
 
-        const mappedSales = filteredSales.map(s => ({
-            ...s,
-            type: 'SALE',
-            description: `Invoice #${s.id}`,
-            amount: s.grandTotal || 0,
-            dateObj: new Date(s.date)
-        }));
+        const mappedSales = filteredSales.map(s => {
+            let amount = parseFloat(s.subtotal);
+            if (isNaN(amount)) {
+                amount = (parseFloat(s.grandTotal) || 0) - (parseFloat(s.prevBalance) || 0);
+            }
+            return {
+                ...s,
+                type: 'SALE',
+                description: `Invoice #${s.id}`,
+                amount: amount,
+                debit: amount,
+                credit: 0,
+                dateObj: new Date(s.date)
+            };
+        });
 
         const mappedPayments = filteredPayments.map(p => ({
             ...p,
             type: 'PAYMENT',
             description: p.memo || '-',
             amount: p.amount || 0,
+            debit: 0,
+            credit: p.amount || 0,
             dateObj: new Date(p.date)
         }));
 
