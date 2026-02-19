@@ -12,6 +12,7 @@ export default function Reports() {
     });
     const [activeTab, setActiveTab] = useState('sales'); // options: 'sales', 'products', 'customers', 'daily', 'history'
     const [selectedCustomer, setSelectedCustomer] = useState('');
+    const [showDetails, setShowDetails] = useState(false);
     const componentRef = useRef();
 
     // Fetch data
@@ -151,6 +152,10 @@ export default function Reports() {
 
     }, [selectedCustomer, sales, payments]);
 
+    const getProductName = (id) => {
+        return products?.find(p => p.id === id)?.name || 'Unknown Product';
+    };
+
 
     if (!stats) return <div className="p-8 text-center">Loading reports...</div>;
 
@@ -201,12 +206,23 @@ export default function Reports() {
                     </div>
 
                     {activeTab === 'history' && selectedCustomer && (
-                        <button
-                            onClick={handlePrint}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
-                        >
-                            <Printer size={16} /> Print Report
-                        </button>
+                        <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                                <input
+                                    type="checkbox"
+                                    checked={showDetails}
+                                    onChange={(e) => setShowDetails(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+                                />
+                                Show Details
+                            </label>
+                            <button
+                                onClick={handlePrint}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+                            >
+                                <Printer size={16} /> Print Report
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -404,41 +420,90 @@ export default function Reports() {
                             </div>
                         ) : (
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
+                                <table className="w-full text-sm text-left border-collapse">
                                     <thead className="bg-gray-50 text-gray-600 font-bold border-b print:bg-white print:border-black">
                                         <tr>
-                                            <th className="p-3">Date</th>
-                                            <th className="p-3">Description</th>
-                                            <th className="p-3 text-right">Debit (RM)</th>
-                                            <th className="p-3 text-right">Credit (RM)</th>
+                                            <th className="p-3 border-b">Date</th>
+                                            <th className="p-3 border-b">Description</th>
+                                            <th className="p-3 border-b text-right">Debit (RM)</th>
+                                            <th className="p-3 border-b text-right">Credit (RM)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y print:divide-black">
                                         {customerHistory.map((item) => (
-                                            <tr key={`${item.type}-${item.id}`} className="hover:bg-gray-50 print:hover:bg-white">
-                                                <td className="p-3">{formatDateShort(new Date(item.date))}</td>
-                                                <td className="p-3">
-                                                    <span className={`font-medium ${item.type === 'SALE' ? 'text-blue-700' : 'text-green-700'} print:text-black`}>
-                                                        {item.type}
-                                                    </span>
-                                                    {item.type === 'SALE' && ` - Invoice #${item.id}`}
-                                                    {item.memo && <span className="text-gray-500 italic ml-2 print:text-gray-800">- {item.memo}</span>}
-                                                </td>
-                                                <td className="p-3 text-right">
-                                                    {item.debit > 0 ? item.debit.toFixed(2) : '-'}
-                                                </td>
-                                                <td className="p-3 text-right">
-                                                    {item.credit > 0 ? item.credit.toFixed(2) : '-'}
-                                                </td>
-                                            </tr>
+                                            <React.Fragment key={`${item.type}-${item.id}`}>
+                                                <tr className={`hover:bg-gray-50 print:hover:bg-white ${showDetails ? 'bg-gray-50/50' : ''}`}>
+                                                    <td className="p-3 align-top">{formatDateShort(new Date(item.date))}</td>
+                                                    <td className="p-3 align-top">
+                                                        <div className="font-medium">
+                                                            <span className={`${item.type === 'SALE' ? 'text-blue-700' : 'text-green-700'} print:text-black`}>
+                                                                {item.type}
+                                                            </span>
+                                                            {item.type === 'SALE' && ` - Invoice #${item.id}`}
+                                                        </div>
+                                                        {item.memo && !showDetails && <div className="text-gray-500 italic text-xs mt-1 print:text-gray-600">{item.memo}</div>}
+                                                    </td>
+                                                    <td className="p-3 align-top text-right">
+                                                        {item.debit > 0 ? item.debit.toFixed(2) : '-'}
+                                                    </td>
+                                                    <td className="p-3 align-top text-right">
+                                                        {item.credit > 0 ? item.credit.toFixed(2) : '-'}
+                                                    </td>
+                                                </tr>
+                                                {/* Detailed View Row */}
+                                                {showDetails && (
+                                                    <tr className="print:border-b-0">
+                                                        <td colSpan="4" className="p-0 border-b-0">
+                                                            <div className="pl-8 pr-4 pb-4 pt-1 bg-gray-50/50 print:bg-white print:pl-8">
+                                                                {item.type === 'SALE' && item.items && (
+                                                                    <table className="w-full text-xs bg-white border rounded print:border-gray-300">
+                                                                        <thead className="bg-gray-100 text-gray-600 print:bg-gray-100">
+                                                                            <tr>
+                                                                                <th className="p-2 text-left">Product</th>
+                                                                                <th className="p-2 text-center">Qty</th>
+                                                                                <th className="p-2 text-right">Price</th>
+                                                                                <th className="p-2 text-right">Total</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y">
+                                                                            {item.items.map((lineItem, idx) => (
+                                                                                <tr key={idx}>
+                                                                                    <td className="p-2 font-medium">{getProductName(lineItem.productId)}</td>
+                                                                                    <td className="p-2 text-center">{lineItem.qty} {lineItem.unit}</td>
+                                                                                    <td className="p-2 text-right">{lineItem.price.toFixed(2)}</td>
+                                                                                    <td className="p-2 text-right font-semibold">
+                                                                                        {((lineItem.qty * lineItem.price) - (lineItem.discount || 0)).toFixed(2)}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                            {item.memo && (
+                                                                                <tr>
+                                                                                    <td colSpan="4" className="p-2 text-gray-500 italic border-t">
+                                                                                        Note: {item.memo}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            )}
+                                                                        </tbody>
+                                                                    </table>
+                                                                )}
+                                                                {item.type === 'PAYMENT' && item.memo && (
+                                                                    <div className="p-2 bg-white border rounded text-xs text-gray-600 italic print:border-gray-300">
+                                                                        Memo: {item.memo}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
                                         ))}
                                         {/* Totals Row */}
-                                        <tr className="bg-gray-50 font-bold border-t-2 border-gray-200 print:bg-white print:border-black">
-                                            <td colSpan="2" className="p-3 text-right">Total</td>
-                                            <td className="p-3 text-right">
+                                        <tr className="bg-gray-100 font-bold border-t-2 border-gray-300 print:bg-white print:border-black">
+                                            <td colSpan="2" className="p-3 text-right uppercase text-gray-700 print:text-black">Total</td>
+                                            <td className="p-3 text-right text-gray-900 print:text-black">
                                                 {customerHistory.reduce((sum, item) => sum + item.debit, 0).toFixed(2)}
                                             </td>
-                                            <td className="p-3 text-right">
+                                            <td className="p-3 text-right text-gray-900 print:text-black">
                                                 {customerHistory.reduce((sum, item) => sum + item.credit, 0).toFixed(2)}
                                             </td>
                                         </tr>
