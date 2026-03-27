@@ -4,7 +4,7 @@ import { useReactToPrint } from 'react-to-print';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, X } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 import poultryLogo from '../assets/poultry_logo.jpg';
 
@@ -193,10 +193,14 @@ export default function NewSale() {
         documentTitle: `Invoice-${id || 'New'}`,
     });
 
+    const [prevSaleId, setPrevSaleId] = useState(null);
+    const [nextSaleId, setNextSaleId] = useState(null);
+
     // Load existing sale if ID is present
     useEffect(() => {
         if (id) {
-            db.sales.get(parseInt(id)).then(sale => {
+            const currentId = parseInt(id);
+            db.sales.get(currentId).then(sale => {
                 if (sale) {
                     setSaleDate(sale.date);
                     setSelectedCustomer(sale.customerId);
@@ -207,6 +211,17 @@ export default function NewSale() {
                     setIsViewMode(true);
                 }
             });
+
+            // Fetch adjacent invoices for navigation
+            db.sales.where('id').below(currentId).last().then(sale => {
+                setPrevSaleId(sale ? sale.id : null);
+            });
+            db.sales.where('id').above(currentId).first().then(sale => {
+                setNextSaleId(sale ? sale.id : null);
+            });
+        } else {
+            setPrevSaleId(null);
+            setNextSaleId(null);
         }
     }, [id]);
 
@@ -335,10 +350,32 @@ export default function NewSale() {
             {showToolbar && (
                 <div className="sticky top-0 bg-white shadow-sm p-4 flex justify-between items-center z-10 no-print">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full">
+                        <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full" title="Back to Dashboard">
                             <ArrowLeft size={20} />
                         </button>
                         <h1 className="text-xl font-bold">{id ? 'Invoice View' : 'New Sale'}</h1>
+
+                        {/* Navigation Arrows */}
+                        {id && (
+                            <div className="flex items-center ml-2 gap-1 border-l pl-2 border-gray-200">
+                                <button
+                                    onClick={() => prevSaleId && navigate(`/sales/${prevSaleId}`)}
+                                    disabled={!prevSaleId}
+                                    className={`p-1.5 rounded-md ${!prevSaleId ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+                                    title="Previous Invoice"
+                                >
+                                    <ChevronLeft size={20} />
+                                </button>
+                                <button
+                                    onClick={() => nextSaleId && navigate(`/sales/${nextSaleId}`)}
+                                    disabled={!nextSaleId}
+                                    className={`p-1.5 rounded-md ${!nextSaleId ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+                                    title="Next Invoice"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+                        )}
                     </div>
                     <div className="flex gap-2">
                         {isViewMode ? (

@@ -19,12 +19,14 @@ export default function Sales() {
         return items?.reduce((sum, item) => sum + (item.discount || 0), 0) || 0;
     };
 
-    const filteredSales = sales?.filter(s => {
-        const customerName = getCustomerName(s.customerId).toLowerCase();
-        const dateStr = formatDateShort(new Date(s.date));
-        const memo = s.memo?.toLowerCase() || '';
-        return customerName.includes(searchTerm.toLowerCase()) || dateStr.includes(searchTerm) || memo.includes(searchTerm.toLowerCase());
-    }) || [];
+    const filteredSales = (sales || [])
+        .filter(s => {
+            const customerName = getCustomerName(s.customerId).toLowerCase();
+            const dateStr = formatDateShort(new Date(s.date));
+            const memo = s.memo?.toLowerCase() || '';
+            return customerName.includes(searchTerm.toLowerCase()) || dateStr.includes(searchTerm) || memo.includes(searchTerm.toLowerCase());
+        })
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
 
     const handleDelete = async (id) => {
         if (window.confirm('Are you sure you want to delete this sale record?')) {
