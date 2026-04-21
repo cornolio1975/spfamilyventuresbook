@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { Calendar, TrendingUp, Users, Package, DollarSign, History, Printer } from 'lucide-react';
+import { Calendar, TrendingUp, Users, Package, DollarSign, History, Printer, ShoppingBag } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
 export default function Reports() {
@@ -10,8 +10,9 @@ export default function Reports() {
         start: formatDateShort(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
         end: formatDateShort(new Date())
     });
-    const [activeTab, setActiveTab] = useState('sales'); // options: 'sales', 'products', 'customers', 'daily', 'history'
+    const [activeTab, setActiveTab] = useState('sales'); // options: 'sales', 'products', 'customers', 'daily', 'history', 'vendor-bills'
     const [selectedCustomer, setSelectedCustomer] = useState('');
+    const [selectedVendor, setSelectedVendor] = useState('');
     const [showDetails, setShowDetails] = useState(false);
     const componentRef = useRef();
 
@@ -27,6 +28,7 @@ export default function Reports() {
 
     const products = useLiveQuery(() => db.products.toArray());
     const customers = useLiveQuery(() => db.customers.toArray());
+    const vendors = useLiveQuery(() => db.vendors.toArray());
     const vendorBills = useLiveQuery(() => db.vendor_purchases.toArray());
 
     const handlePrint = useReactToPrint({
@@ -192,6 +194,24 @@ export default function Reports() {
 
     }, [customerRecords, dateRange]);
 
+    // Filter Vendor Bills
+    const filteredVendorBills = useMemo(() => {
+        if (!vendorBills) return [];
+        return vendorBills.filter(bill => {
+            const dateMatch = bill.date >= dateRange.start && bill.date <= dateRange.end;
+            const vendorMatch = selectedVendor ? String(bill.vendorId) === String(selectedVendor) : true;
+            return dateMatch && vendorMatch;
+        }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    }, [vendorBills, dateRange, selectedVendor]);
+
+    const totalVendorBills = filteredVendorBills.reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
+
+    const totalBillsForNetProfit = useMemo(() => {
+        if (!vendorBills) return 0;
+        return vendorBills
+            .filter(bill => bill.date >= dateRange.start && bill.date <= dateRange.end)
+            .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
+    }, [vendorBills, dateRange]);
 
     const getProductName = (id) => {
         return products?.find(p => p.id === id)?.name || 'Unknown Product';
@@ -248,6 +268,22 @@ export default function Reports() {
                                 </select>
                             </div>
                         )}
+
+                        {activeTab === 'vendor-bills' && (
+                            <div className="md:ml-4">
+                                <label className="block text-xs font-bold text-gray-500 mb-1">Select Vendor</label>
+                                <select
+                                    value={selectedVendor}
+                                    onChange={(e) => setSelectedVendor(e.target.value)}
+                                    className="p-2 border rounded-md text-sm w-full min-w-[200px]"
+                                >
+                                    <option value="">-- All Vendors --</option>
+                                    {vendors?.map(v => (
+                                        <option key={v.id} value={v.id}>{v.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {activeTab === 'history' && selectedCustomer && (
@@ -277,6 +313,10 @@ export default function Reports() {
                         <div className="bg-green-50 p-3 rounded-lg border border-green-100 min-w-[120px]">
                             <p className="text-xs text-green-600 font-bold uppercase">Revenue</p>
                             <p className="text-lg font-bold text-green-900">RM {stats.summary.revenue.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 min-w-[120px]">
+                            <p className="text-xs text-purple-600 font-bold uppercase">Net Profit</p>
+                            <p className="text-lg font-bold text-purple-900">RM {(stats.summary.revenue - totalBillsForNetProfit).toFixed(2)}</p>
                         </div>
                         <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 min-w-[120px]">
                             <p className="text-xs text-blue-600 font-bold uppercase">Paid</p>
@@ -315,6 +355,12 @@ export default function Reports() {
                     className={`px-4 py-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${activeTab === 'daily' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                     <Calendar size={16} /> Daily Summary
+                </button>
+                <button
+                    onClick={() => setActiveTab('vendor-bills')}
+                    className={`px-4 py-2 font-medium text-sm flex items-center gap-2 whitespace-nowrap ${activeTab === 'vendor-bills' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                    <ShoppingBag size={16} /> Vendor Bills
                 </button>
                 <button
                     onClick={() => setActiveTab('history')}
@@ -438,6 +484,42 @@ export default function Reports() {
                                 {stats.customers.length === 0 && (
                                     <tr>
                                         <td colSpan="3" className="p-8 text-center text-gray-500">No customer data available.</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {activeTab === 'vendor-bills' && (
+                    <div className="overflow-x-auto">
+                        <div className="p-4 bg-gray-50 border-b flex justify-between items-center">
+                            <h3 className="font-bold text-gray-700">Vendor Bills List</h3>
+                            <p className="font-bold text-lg text-red-600">Total: RM {totalVendorBills.toFixed(2)}</p>
+                        </div>
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-50 text-gray-600 font-bold border-b">
+                                <tr>
+                                    <th className="p-3">Date</th>
+                                    <th className="p-3">Vendor</th>
+                                    <th className="p-3">Reference / Memo</th>
+                                    <th className="p-3 text-right">Amount (RM)</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {filteredVendorBills.map(bill => (
+                                    <tr key={bill.id} className="hover:bg-gray-50">
+                                        <td className="p-3">{formatDateShort(new Date(bill.date))}</td>
+                                        <td className="p-3 font-medium">
+                                            {vendors?.find(v => String(v.id) === String(bill.vendorId))?.name || 'Unknown'}
+                                        </td>
+                                        <td className="p-3 text-gray-600">{bill.memo || '-'}</td>
+                                        <td className="p-3 text-right font-bold text-red-600">{parseFloat(bill.total || 0).toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                                {filteredVendorBills.length === 0 && (
+                                    <tr>
+                                        <td colSpan="4" className="p-8 text-center text-gray-500">No vendor bills found in this period.</td>
                                     </tr>
                                 )}
                             </tbody>

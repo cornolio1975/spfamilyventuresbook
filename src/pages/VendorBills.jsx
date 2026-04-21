@@ -105,7 +105,7 @@ export default function VendorBills() {
         const dateStr = formatDateShort(new Date(b.date));
         const memo = b.memo?.toLowerCase() || '';
         return vendorName.includes(searchTerm.toLowerCase()) || dateStr.includes(searchTerm) || memo.includes(searchTerm.toLowerCase());
-    }) || [];
+    }).sort((a, b) => new Date(b.date) - new Date(a.date)) || [];
 
     return (
         <div className="p-4 pb-24 max-w-6xl mx-auto">

@@ -220,6 +220,13 @@ export default function NewSale() {
                 setNextSaleId(sale ? sale.id : null);
             });
         } else {
+            setSaleDate(formatDateShort(new Date()));
+            setSelectedCustomer('');
+            setItems([]);
+            setPrevBalance(0);
+            setPrevBalanceMemo('');
+            setPaidAmount(0);
+            setIsViewMode(false);
             setPrevSaleId(null);
             setNextSaleId(null);
         }
@@ -398,6 +405,12 @@ export default function NewSale() {
                                     className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
                                 >
                                     <Printer size={18} /> Save as PDF
+                                </button>
+                                <button
+                                    onClick={() => navigate('/sales/new')}
+                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                    <Plus size={18} /> New Sale
                                 </button>
                             </>
                         ) : (

@@ -27,8 +27,13 @@ export default function Landing() {
         netProfit: 0,
         totalRevenue: 0,
         monthlySales: 0,
+        monthlyNetProfit: 0,
+        yearlyNetProfit: 0,
         customerCount: 0,
-        productCount: 0
+        productCount: 0,
+        todayCollections: 0,
+        todayInvoices: 0,
+        totalOutstanding: 0
     });
     const [recentSales, setRecentSales] = useState([]);
     const [isSeeding, setIsSeeding] = useState(false);
@@ -37,9 +42,10 @@ export default function Landing() {
     const products = useLiveQuery(() => db.products.toArray());
     const sales = useLiveQuery(() => db.sales.toArray());
     const vendorBills = useLiveQuery(() => db.vendor_purchases.toArray());
+    const payments = useLiveQuery(() => db.payments.toArray());
 
     useEffect(() => {
-        if (sales && customers && products && vendorBills) {
+        if (sales && customers && products && vendorBills && payments) {
             const today = formatDateShort(new Date());
 
             // 1. Calculate Today's Sales
@@ -52,6 +58,36 @@ export default function Landing() {
                 .filter(bill => bill.date === today)
                 .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
 
+            const todayCollectionsTotal = payments
+                .filter(p => p.date === today)
+                .reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+            const todayInvoicesCount = sales.filter(s => s.date === today).length;
+
+            let totalOutstandingTotal = 0;
+            const totalSalesAmount = sales.reduce((sum, s) => {
+                let saleAmount = s.subtotal;
+                if (saleAmount === undefined || saleAmount === null) {
+                    saleAmount = (parseFloat(s.grandTotal) || 0) - (parseFloat(s.prevBalance) || 0);
+                }
+                return sum + (parseFloat(saleAmount) || 0);
+            }, 0);
+            const totalPaymentsAmount = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+            
+            const initialBalancesAmount = customers.reduce((sum, c) => {
+                const customerSales = sales.filter(s => String(s.customerId) === String(c.id));
+                const sortedSales = [...customerSales].sort((a, b) => {
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    if (dateA - dateB !== 0) return dateA - dateB;
+                    return a.id - b.id;
+                });
+                const firstSale = sortedSales[0];
+                return sum + (firstSale ? (parseFloat(firstSale.prevBalance) || 0) : 0);
+            }, 0);
+
+            totalOutstandingTotal = totalSalesAmount + initialBalancesAmount - totalPaymentsAmount;
+
             // 3. Calculate Net Profit
             const netProfitTotal = todaySalesTotal - todayBillsTotal;
 
@@ -62,6 +98,12 @@ export default function Landing() {
                 .filter(s => new Date(s.date).getFullYear() === currentYear)
                 .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
 
+            const allBillsTotal = vendorBills
+                .filter(bill => new Date(bill.date).getFullYear() === currentYear)
+                .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
+
+            const yearlyNetProfitTotal = allSalesTotal - allBillsTotal;
+
             const monthlySalesTotal = sales
                 .filter(s => {
                     const saleDate = new Date(s.date);
@@ -69,14 +111,28 @@ export default function Landing() {
                 })
                 .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
 
+            const monthlyBillsTotal = vendorBills
+                .filter(bill => {
+                    const billDate = new Date(bill.date);
+                    return billDate.getFullYear() === currentYear && billDate.getMonth() === currentMonth;
+                })
+                .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
+
+            const monthlyNetProfitTotal = monthlySalesTotal - monthlyBillsTotal;
+
             setStats({
                 todaySales: todaySalesTotal,
                 todayBills: todayBillsTotal,
                 netProfit: netProfitTotal,
                 totalRevenue: allSalesTotal,
                 monthlySales: monthlySalesTotal,
+                monthlyNetProfit: monthlyNetProfitTotal,
+                yearlyNetProfit: yearlyNetProfitTotal,
                 customerCount: customers.length,
-                productCount: products.length
+                productCount: products.length,
+                todayCollections: todayCollectionsTotal,
+                todayInvoices: todayInvoicesCount,
+                totalOutstanding: totalOutstandingTotal
             });
 
             // Get 5 most recent sales
@@ -122,7 +178,8 @@ export default function Landing() {
                     </div>
 
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        {/* Box 1: Today's Sales */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-green-400/20 rounded-lg">
@@ -133,22 +190,22 @@ export default function Landing() {
                             <p className="text-2xl font-bold">RM {stats.todaySales.toFixed(2)}</p>
                         </div>
 
-                        {/* Today's Vendor Bills - Red/Orange for expense */}
+                        {/* Box 2: Today's Collections */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-orange-400/20 rounded-lg">
-                                    <Receipt size={20} className="text-orange-300" />
+                                <div className="p-2 bg-blue-400/20 rounded-lg">
+                                    <DollarSign size={20} className="text-blue-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Today's Vendor Bills</span>
+                                <span className="text-blue-100 text-sm font-medium">Today's Collections</span>
                             </div>
-                            <p className="text-2xl font-bold">RM {stats.todayBills.toFixed(2)}</p>
+                            <p className="text-2xl font-bold text-white">RM {stats.todayCollections.toFixed(2)}</p>
                         </div>
 
-                        {/* Daily Net Profit - Green for profit */}
+                        {/* Box 3: Daily Net Profit */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-green-400/20 rounded-lg">
-                                    <DollarSign size={20} className="text-green-300" />
+                                    <TrendingUp size={20} className="text-green-300" />
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Daily Net Profit</span>
                             </div>
@@ -156,7 +213,21 @@ export default function Landing() {
                                 RM {stats.netProfit.toFixed(2)}
                             </p>
                         </div>
+                        
+                        {/* Box 4: Total Outstanding Balance */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-red-400/20 rounded-lg">
+                                    <Receipt size={20} className="text-red-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Total Outstanding</span>
+                            </div>
+                            <p className={`text-2xl font-bold ${stats.totalOutstanding > 0 ? 'text-red-300' : 'text-white'}`}>
+                                RM {stats.totalOutstanding.toFixed(2)}
+                            </p>
+                        </div>
 
+                        {/* Box 5: Monthly Sales */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-400/20 rounded-lg">
@@ -166,8 +237,21 @@ export default function Landing() {
                             </div>
                             <p className="text-2xl font-bold">RM {stats.monthlySales.toFixed(2)}</p>
                         </div>
+                        
+                        {/* Box 6: Monthly Net Profit */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-green-400/20 rounded-lg">
+                                    <TrendingUp size={20} className="text-green-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Monthly Net Profit</span>
+                            </div>
+                            <p className={`text-2xl font-bold ${stats.monthlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
+                                RM {stats.monthlyNetProfit.toFixed(2)}
+                            </p>
+                        </div>
 
-
+                        {/* Box 7: Yearly Sales / Revenue */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-400/20 rounded-lg">
@@ -178,6 +262,42 @@ export default function Landing() {
                             <p className="text-2xl font-bold">RM {stats.totalRevenue.toFixed(2)}</p>
                         </div>
 
+                        {/* Box 8: Yearly Net Profit */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-green-400/20 rounded-lg">
+                                    <TrendingUp size={20} className="text-green-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Yearly Net Profit</span>
+                            </div>
+                            <p className={`text-2xl font-bold ${stats.yearlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
+                                RM {stats.yearlyNetProfit.toFixed(2)}
+                            </p>
+                        </div>
+
+                        {/* Box 9: Today's Vendor Bills */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-orange-400/20 rounded-lg">
+                                    <Receipt size={20} className="text-orange-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Today's Bills</span>
+                            </div>
+                            <p className="text-2xl font-bold text-orange-200">RM {stats.todayBills.toFixed(2)}</p>
+                        </div>
+
+                        {/* Box 10: Today's Invoices (count) */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-2 bg-indigo-400/20 rounded-lg">
+                                    <Calendar size={20} className="text-indigo-300" />
+                                </div>
+                                <span className="text-blue-100 text-sm font-medium">Today's Invoices</span>
+                            </div>
+                            <p className="text-2xl font-bold">{stats.todayInvoices}</p>
+                        </div>
+
+                        {/* Box 11: Customers */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-purple-400/20 rounded-lg">
@@ -188,10 +308,11 @@ export default function Landing() {
                             <p className="text-2xl font-bold">{stats.customerCount}</p>
                         </div>
 
+                        {/* Box 12: Products */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-orange-400/20 rounded-lg">
-                                    <Package size={20} className="text-orange-300" />
+                                <div className="p-2 bg-amber-400/20 rounded-lg">
+                                    <Package size={20} className="text-amber-300" />
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Products</span>
                             </div>
