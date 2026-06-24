@@ -275,6 +275,13 @@ export default function Customers() {
                             <h3 className="font-semibold text-lg text-gray-800">{customer.name}</h3>
                             <div className="flex gap-1">
                                 <button
+                                    onClick={() => handleOpenPaymentModal(customer)}
+                                    className="text-green-600 hover:text-green-800 p-1"
+                                    title="Receive Payment"
+                                >
+                                    <Wallet size={16} />
+                                </button>
+                                <button
                                     onClick={() => handleOpenHistory(customer)}
                                     className="text-gray-600 hover:text-gray-800 p-1"
                                     title="View History"
@@ -284,12 +291,14 @@ export default function Customers() {
                                 <button
                                     onClick={() => handleOpenModal(customer)}
                                     className="text-blue-600 hover:text-blue-800 p-1"
+                                    title="Edit Customer"
                                 >
                                     <Edit size={16} />
                                 </button>
                                 <button
                                     onClick={() => handleDelete(customer.id)}
                                     className="text-red-600 hover:text-red-800 p-1"
+                                    title="Delete Customer"
                                 >
                                     <Trash2 size={16} />
                                 </button>
