@@ -20,10 +20,17 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
             if (drafts.length === 1) {
                 onApply(drafts[0]);
                 setMessage('Bill details filled in. Review the invoice and select Save to record the sale.');
-            } else if (await onSaveBatch(drafts)) {
-                setInput('');
-                setMessage(`${drafts.length} bills saved to Sales.`);
+                return;
             }
+
+            const result = await onSaveBatch(drafts);
+            if (!result) return;
+
+            const { ids, skipped } = result;
+            const savedMessage = ids.length === 1 ? '1 bill saved to Sales.' : `${ids.length} bills saved to Sales.`;
+            const skippedMessage = skipped === 1 ? '1 duplicate skipped.' : `${skipped} duplicates skipped.`;
+            setInput('');
+            setMessage(skipped ? `${savedMessage} ${skippedMessage}` : savedMessage);
         } catch (draftError) {
             setError(draftError.message);
         }

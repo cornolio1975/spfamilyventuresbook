@@ -3,6 +3,7 @@ import { formatDateShort } from '../utils/dateUtils';
 import { useReactToPrint } from 'react-to-print';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
+import { saveAssistantSales } from '../db/saveAssistantSales';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import logo from '../assets/logo.jpg';
@@ -191,6 +192,7 @@ export default function NewSale() {
     const [isSaving, setIsSaving] = useState(false);
     const componentRef = useRef();
     const saveInProgress = useRef(false);
+    const fromBillingAssistant = useRef(false);
 
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
@@ -202,6 +204,7 @@ export default function NewSale() {
 
     // Load existing sale if ID is present
     useEffect(() => {
+        fromBillingAssistant.current = false;
         if (id) {
             const currentId = parseInt(id);
             db.sales.get(currentId).then(sale => {
@@ -267,6 +270,7 @@ export default function NewSale() {
     };
 
     const applyBillingDraft = (draft) => {
+        fromBillingAssistant.current = true;
         setSaleDate(draft.date);
         setSelectedCustomer(draft.customerId);
         setItems(draft.items);
@@ -276,7 +280,7 @@ export default function NewSale() {
     };
 
     const saveBillingBatch = async (drafts) => {
-        if (saveInProgress.current) return false;
+        if (saveInProgress.current) return null;
         saveInProgress.current = true;
         setIsSaving(true);
         try {
@@ -286,8 +290,7 @@ export default function NewSale() {
                 if (!Number.isFinite(grandTotal)) throw new Error('The bill total is too large.');
                 return { ...draft, subtotal, grandTotal, paidAmount: 0, memo: '' };
             });
-            await db.transaction('rw', db.sales, () => db.sales.bulkAdd(sales));
-            return true;
+            return await saveAssistantSales(db, sales);
         } finally {
             saveInProgress.current = false;
             setIsSaving(false);
@@ -331,7 +334,16 @@ export default function NewSale() {
                 await db.sales.update(savedId, saleData);
                 alert('Sale updated!');
             } else {
-                savedId = await db.sales.add(saleData);
+                if (fromBillingAssistant.current) {
+                    const { ids } = await saveAssistantSales(db, [saleData]);
+                    if (!ids.length) {
+                        alert('Duplicate bill. This invoice is already in Sales.');
+                        return;
+                    }
+                    [savedId] = ids;
+                } else {
+                    savedId = await db.sales.add(saleData);
+                }
                 // If new sale and NOT printing, navigate away
                 if (!shouldPrint) {
                     navigate(`/sales/${savedId}`);
