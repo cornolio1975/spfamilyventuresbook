@@ -21,10 +21,14 @@ export function parseBillingBatch(input, customers, products, codes) {
     const dateMatch = lines[0]?.text.match(DATE_LINE);
     if (!dateMatch) throw new Error('Start with a date such as 21/11/26 or Date 21/11/2026.');
 
-    let date = parseBillDate(dateMatch, lines[0].number);
+    const date = parseBillDate(dateMatch, lines[0].number);
 
     const blocks = [[]];
     for (const line of lines.slice(1)) {
+        if (DATE_LINE.test(line.text)) {
+            throw new Error(`Line ${line.number}: Remove this date. Every bill uses the date on the first line.`);
+        }
+
         if (SEPARATOR_LINE.test(line.text)) {
             if (!blocks.at(-1).length) throw new Error(`Line ${line.number}: Add a bill before the divider.`);
             blocks.push([]);
@@ -36,11 +40,7 @@ export function parseBillingBatch(input, customers, products, codes) {
         throw new Error(`Line ${lines.at(-1).number}: Add a bill after the divider.`);
     }
 
-    return blocks.map(block => {
-        const blockDate = block[0]?.text.match(DATE_LINE);
-        if (blockDate) date = parseBillDate(blockDate, block.shift().number);
-        return parseBill(block, date, customers, products, codes);
-    });
+    return blocks.map(block => parseBill(block, date, customers, products, codes));
 }
 
 function parseBillDate(dateMatch, lineNumber) {
