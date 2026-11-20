@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Users, Settings, Package, TrendingUp, Truck, Receipt, Store } from 'lucide-react';
 import clsx from 'clsx';
 import { startSync } from '../firebase/sync';
+import BillingCodeReference from '../components/BillingCodeReference';
 
 export default function MainLayout() {
     const location = useLocation();
@@ -27,6 +28,7 @@ export default function MainLayout() {
 
     return (
         <div className="flex flex-col h-screen bg-gray-50 print:h-auto print:block">
+            <BillingCodeReference />
             <main className="flex-1 overflow-y-auto pb-20 print:pb-0 print:h-auto print:overflow-visible">
                 <Outlet />
             </main>
