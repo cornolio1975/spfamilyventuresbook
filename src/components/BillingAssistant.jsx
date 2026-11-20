@@ -1,21 +1,29 @@
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import billingCodes from '../data/billingCodes.json';
-import { parseBillingDraft } from '../utils/parseBillingDraft';
+import { parseBillingBatch } from '../utils/parseBillingDraft';
 
-export default function BillingAssistant({ customers, products, open, hasItems, onApply }) {
+export default function BillingAssistant({ customers, products, open, hasItems, isSaving, onApply, onSaveBatch }) {
     const [input, setInput] = useState('');
     const [error, setError] = useState('');
-    const [applied, setApplied] = useState(false);
+    const [message, setMessage] = useState('');
     const ready = Boolean(customers && products);
+    const isBatch = input.split(/\r?\n/).some(line => /^[-–—]{2,}$/.test(line.trim()));
 
-    const prepareBill = (event) => {
+    const prepareBills = async (event) => {
         event.preventDefault();
+        if (!ready || isSaving) return;
         setError('');
-        setApplied(false);
+        setMessage('');
         try {
-            onApply(parseBillingDraft(input, customers, products, billingCodes));
-            setApplied(true);
+            const drafts = parseBillingBatch(input, customers, products, billingCodes);
+            if (drafts.length === 1) {
+                onApply(drafts[0]);
+                setMessage('Bill details filled in. Review the invoice and select Save to record the sale.');
+            } else if (await onSaveBatch(drafts)) {
+                setInput('');
+                setMessage(`${drafts.length} bills saved to Sales.`);
+            }
         } catch (draftError) {
             setError(draftError.message);
         }
@@ -27,34 +35,35 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                 <Sparkles aria-hidden="true" size={18} className="mr-2 inline-block align-text-bottom" />
                 Billing Assistant
             </summary>
-            <form onSubmit={prepareBill} className="mt-4 space-y-3">
+            <form onSubmit={prepareBills} className="mt-4 space-y-3">
                 <label htmlFor="billing-shorthand" className="block text-sm font-medium text-gray-700">
                     Bill shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date and customer code on separate lines. Use one line per item with its code, quantity, unit and price in RM. Add Bal on the last line if there is a previous balance.
+                    Enter the date once, then the customer code, items and optional Bal for each bill. Put a divider such as --- on its own line between customers to save multiple bills together.
                 </p>
                 <textarea
                     id="billing-shorthand"
                     aria-describedby="billing-format"
-                    rows={6}
+                    rows={9}
+                    disabled={isSaving}
                     value={input}
                     onChange={(event) => {
                         setInput(event.target.value);
                         setError('');
-                        setApplied(false);
+                        setMessage('');
                     }}
-                    placeholder={'Date 01/01/2026\nHPL\nAPH 2kg 8.00\nATH 1pc 6.00\nBal 0'}
+                    placeholder={'01/01/26\nHPL\nAPH 2kg 8.00\nBal 0\n---\nSHB\nATH 1pc 6.00\nBal 0'}
                     className="w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
                 />
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
-                {applied && <p role="status" className="text-sm text-green-700">Bill details filled in. Review the invoice and select Save to record the sale.</p>}
+                {message && <p role="status" className="text-sm text-green-700">{message}</p>}
                 <button
                     type="submit"
-                    disabled={!ready || !input.trim()}
+                    disabled={!ready || isSaving || !input.trim()}
                     className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
                 >
-                    {hasItems ? 'Replace invoice draft' : 'Prepare invoice'}
+                    {isBatch ? 'Save all bills' : hasItems ? 'Replace invoice draft' : 'Prepare invoice'}
                 </button>
                 {!ready && <p role="status" className="text-sm text-gray-600">Loading customers and products…</p>}
             </form>

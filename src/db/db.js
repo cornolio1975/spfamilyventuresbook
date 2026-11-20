@@ -20,7 +20,7 @@ db.version(6).stores({
     db[tableName].hook('creating', function (primKey, obj, transaction) {
         if (transaction && transaction.source === 'firebase-sync') return;
         this.onsuccess = function (id) {
-            pushToCloud(tableName, { ...obj, id });
+            transaction.on('complete', () => pushToCloud(tableName, { ...obj, id }));
         };
     });
     db[tableName].hook('updating', function (mods, primKey, obj, transaction) {

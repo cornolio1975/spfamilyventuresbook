@@ -1,4 +1,5 @@
-const DATE_LINE = /^date\s*:?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/i;
+const DATE_LINE = /^(?:date\s*:?\s*)?(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/i;
+const SEPARATOR_LINE = /^[-–—]{2,}$/;
 const CUSTOMER_LINE = /^[a-z]{3}$/i;
 const ITEM_LINE = /^(?:([a-z]{3})\s+)?([a-z]{3})\s+(\d+(?:\.\d+)?)\s*(kg|pcs?)\s+(?:rm\s*)?(\d+(?:\.\d{1,2})?):?$/i;
 const BALANCE_LINE = /^bal(?:\s*:\s*|\s+)(?:rm\s*)?(-?\d+(?:\.\d{1,2})?)$/i;
@@ -11,16 +12,17 @@ function lookupRecord(code, aliases, records, type) {
     return record;
 }
 
-export function parseBillingDraft(input, customers, products, codes) {
+export function parseBillingBatch(input, customers, products, codes) {
     const lines = input.split(/\r?\n/).map((line, index) => ({
         text: line.trim(),
         number: index + 1
     })).filter(line => line.text);
 
     const dateMatch = lines[0]?.text.match(DATE_LINE);
-    if (!dateMatch) throw new Error('Start with a date in DD/MM/YYYY format, such as Date 21/11/2026.');
+    if (!dateMatch) throw new Error('Start with a date such as 21/11/26 or Date 21/11/2026.');
 
-    const [, day, month, year] = dateMatch;
+    const [, day, month, rawYear] = dateMatch;
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
     const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     const checkedDate = new Date(`${date}T00:00:00Z`);
     if (Number(year) === 0 || !Number.isFinite(checkedDate.getTime()) ||
@@ -28,7 +30,29 @@ export function parseBillingDraft(input, customers, products, codes) {
         throw new Error('Enter a valid bill date.');
     }
 
-    const itemLines = lines.slice(1);
+    const blocks = [[]];
+    for (const line of lines.slice(1)) {
+        if (SEPARATOR_LINE.test(line.text)) {
+            if (!blocks.at(-1).length) throw new Error(`Line ${line.number}: Add a bill before the divider.`);
+            blocks.push([]);
+        } else {
+            blocks.at(-1).push(line);
+        }
+    }
+    if (!blocks.at(-1).length && blocks.length > 1) {
+        throw new Error(`Line ${lines.at(-1).number}: Add a bill after the divider.`);
+    }
+
+    return blocks.map(block => parseBill(block, date, customers, products, codes));
+}
+
+export function parseBillingDraft(input, customers, products, codes) {
+    const drafts = parseBillingBatch(input, customers, products, codes);
+    if (drafts.length !== 1) throw new Error('Use one customer per bill.');
+    return drafts[0];
+}
+
+function parseBill(itemLines, date, customers, products, codes) {
     const customerLine = CUSTOMER_LINE.test(itemLines[0]?.text ?? '') ? itemLines.shift() : null;
     let customer;
     if (customerLine) {
@@ -47,7 +71,11 @@ export function parseBillingDraft(input, customers, products, codes) {
         itemLines.pop();
     }
 
-    if (!itemLines.length) throw new Error('Enter at least one item below the customer code.');
+    if (!itemLines.length) {
+        const line = balanceMatch ? lastLine : customerLine;
+        const message = 'Enter at least one item below the customer code.';
+        throw new Error(line ? `Line ${line.number}: ${message}` : message);
+    }
 
     const items = itemLines.map(line => {
         try {

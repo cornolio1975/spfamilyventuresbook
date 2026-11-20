@@ -258,8 +258,8 @@ export default function NewSale() {
         setItems(items.filter((_, i) => i !== index));
     };
 
-    const calculateSubtotal = () => {
-        return items.reduce((sum, item) => sum + ((item.qty * item.price) - (item.discount || 0)), 0);
+    const calculateSubtotal = (saleItems = items) => {
+        return saleItems.reduce((sum, item) => sum + ((item.qty * item.price) - (item.discount || 0)), 0);
     };
 
     const calculateGrandTotal = () => {
@@ -273,6 +273,25 @@ export default function NewSale() {
         setPrevBalance(draft.prevBalance);
         setPrevBalanceMemo('');
         setPaidAmount(0);
+    };
+
+    const saveBillingBatch = async (drafts) => {
+        if (saveInProgress.current) return false;
+        saveInProgress.current = true;
+        setIsSaving(true);
+        try {
+            const sales = drafts.map(draft => {
+                const subtotal = Number(calculateSubtotal(draft.items).toFixed(2));
+                const grandTotal = Number((subtotal + draft.prevBalance).toFixed(2));
+                if (!Number.isFinite(grandTotal)) throw new Error('The bill total is too large.');
+                return { ...draft, subtotal, grandTotal, paidAmount: 0, memo: '' };
+            });
+            await db.transaction('rw', db.sales, () => db.sales.bulkAdd(sales));
+            return true;
+        } finally {
+            saveInProgress.current = false;
+            setIsSaving(false);
+        }
     };
 
     const handleSave = async (shouldPrint = false) => {
@@ -489,7 +508,9 @@ export default function NewSale() {
                             products={products}
                             open={searchParams.get('assistant') === '1'}
                             hasItems={items.length > 0}
+                            isSaving={isSaving}
                             onApply={applyBillingDraft}
+                            onSaveBatch={saveBillingBatch}
                         />
                     )}
                     {/* Sale Details Card */}
