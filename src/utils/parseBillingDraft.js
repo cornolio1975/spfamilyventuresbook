@@ -1,5 +1,7 @@
 const DATE_LINE = /^date\s*:?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})$/i;
-const ITEM_LINE = /^([a-z]{3})\s+([a-z]{3})\s+(\d+(?:\.\d+)?)\s*(kg|pcs?)\s+(?:rm\s*)?(\d+(?:\.\d{1,2})?):?$/i;
+const CUSTOMER_LINE = /^[a-z]{3}$/i;
+const ITEM_LINE = /^(?:([a-z]{3})\s+)?([a-z]{3})\s+(\d+(?:\.\d+)?)\s*(kg|pcs?)\s+(?:rm\s*)?(\d+(?:\.\d{1,2})?):?$/i;
+const BALANCE_LINE = /^bal(?:\s*:\s*|\s+)(?:rm\s*)?(-?\d+(?:\.\d{1,2})?)$/i;
 
 function lookupRecord(code, aliases, records, type) {
     if (!Object.hasOwn(aliases, code)) throw new Error(`Unknown ${type} code ${code}.`);
@@ -26,20 +28,40 @@ export function parseBillingDraft(input, customers, products, codes) {
         throw new Error('Enter a valid bill date.');
     }
 
-    if (lines.length < 2) throw new Error('Enter at least one item below the date.');
-
+    const itemLines = lines.slice(1);
+    const customerLine = CUSTOMER_LINE.test(itemLines[0]?.text ?? '') ? itemLines.shift() : null;
     let customer;
-    const items = lines.slice(1).map(line => {
+    if (customerLine) {
         try {
+            customer = lookupRecord(customerLine.text.toUpperCase(), codes.customers, customers, 'Customer');
+        } catch (error) {
+            throw new Error(`Line ${customerLine.number}: ${error.message}`);
+        }
+    }
+
+    const lastLine = itemLines.at(-1);
+    const balanceMatch = lastLine?.text.match(BALANCE_LINE);
+    const prevBalance = balanceMatch ? Number(balanceMatch[1]) : 0;
+    if (balanceMatch) {
+        if (!Number.isFinite(prevBalance)) throw new Error(`Line ${lastLine.number}: Enter a valid previous balance.`);
+        itemLines.pop();
+    }
+
+    if (!itemLines.length) throw new Error('Enter at least one item below the customer code.');
+
+    const items = itemLines.map(line => {
+        try {
+            if (/^bal(?:\s|:|$)/i.test(line.text)) throw new Error('Put one balance at the end, for example Bal 2780.');
             const match = line.text.match(ITEM_LINE);
-            if (!match) throw new Error('Use customer code, item code, quantity with unit, and unit price. Example: MEE APP 14kg 8.70.');
+            if (!match) throw new Error('Use item code, quantity with unit, and unit price. Example: APP 14kg 8.70.');
 
             const [, customerCode, productCode, rawQuantity, rawUnit, rawPrice] = match;
-            const currentCustomer = lookupRecord(customerCode.toUpperCase(), codes.customers, customers, 'Customer');
-            if (customer && currentCustomer.id !== customer.id) {
-                throw new Error('Use the same customer on each line of a bill.');
+            if (customerCode) {
+                const currentCustomer = lookupRecord(customerCode.toUpperCase(), codes.customers, customers, 'Customer');
+                if (customer && currentCustomer.id !== customer.id) throw new Error('Use one customer per bill.');
+                customer = currentCustomer;
             }
-            customer = currentCustomer;
+            if (!customer || (!customerLine && !customerCode)) throw new Error('Put the customer code on its own line after the date.');
 
             const product = lookupRecord(productCode.toUpperCase(), codes.products, products, 'Item');
             const qty = Number(rawQuantity);
@@ -54,5 +76,5 @@ export function parseBillingDraft(input, customers, products, codes) {
         }
     });
 
-    return { date, customerId: customer.id, items };
+    return { date, customerId: customer.id, items, prevBalance };
 }

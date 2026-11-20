@@ -270,7 +270,7 @@ export default function NewSale() {
         setSaleDate(draft.date);
         setSelectedCustomer(draft.customerId);
         setItems(draft.items);
-        setPrevBalance(0);
+        setPrevBalance(draft.prevBalance);
         setPrevBalanceMemo('');
         setPaidAmount(0);
     };

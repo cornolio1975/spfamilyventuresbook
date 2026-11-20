@@ -32,19 +32,19 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     Bill shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date, then one line per item with the customer code, item code, quantity and unit price in RM.
+                    Enter the date and customer code on separate lines. Use one line per item with its code, quantity, unit and price in RM. Add Bal on the last line if there is a previous balance.
                 </p>
                 <textarea
                     id="billing-shorthand"
                     aria-describedby="billing-format"
-                    rows={4}
+                    rows={6}
                     value={input}
                     onChange={(event) => {
                         setInput(event.target.value);
                         setError('');
                         setApplied(false);
                     }}
-                    placeholder={'Date 21/11/2026\nMEE APP 14kg 8.70'}
+                    placeholder={'Date 21/11/2026\nHPL\nAPH 30kg 7.90\nAKJ 23kg 13.10\nATH 12pc 5.90\nBal 2780'}
                     className="w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
                 />
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
