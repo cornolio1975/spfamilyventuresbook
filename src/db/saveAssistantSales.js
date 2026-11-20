@@ -1,5 +1,8 @@
+import { hasBillableAmount } from '../utils/billingItemAmount.js';
+
 function saleKey(sale) {
-    const items = sale.items.map(item => {
+    const billableItems = sale.items.filter(item => hasBillableAmount(item.qty * item.price - (item.discount || 0)));
+    const items = billableItems.map(item => {
         const unit = String(item.unit ?? '').trim().toLowerCase();
         return JSON.stringify([
             Number(item.productId),

@@ -1,3 +1,5 @@
+import { hasBillableAmount } from './billingItemAmount.js';
+
 const DATE_LINE = /^(?:date\s*:?\s*)?(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/i;
 const SEPARATOR_LINE = /^[-–—]{2,}$/;
 const CUSTOMER_LINE = /^[a-z]{3}$/i;
@@ -86,7 +88,7 @@ function parseBill(itemLines, date, customers, products, codes) {
         throw new Error(line ? `Line ${line.number}: ${message}` : message);
     }
 
-    const items = itemLines.map(line => {
+    const items = itemLines.flatMap(line => {
         try {
             if (/^bal(?:\s|:|$)/i.test(line.text)) throw new Error('Put one balance at the end, for example Bal 0.');
             const match = line.text.match(ITEM_LINE);
@@ -103,15 +105,19 @@ function parseBill(itemLines, date, customers, products, codes) {
             const product = lookupRecord(productCode.toUpperCase(), codes.products, products, 'Item');
             const qty = Number(rawQuantity);
             const price = Number(rawPrice);
-            if (!(qty > 0) || !Number.isFinite(qty * price) || !Number.isFinite(qty)) {
-                throw new Error('Enter a positive quantity and a valid unit price.');
-            }
+            const amount = qty * price;
+            if (!Number.isFinite(amount)) throw new Error('Enter a valid quantity and unit price.');
+            if (!hasBillableAmount(amount)) return [];
 
-            return { productId: product.id, qty, unit: rawUnit.toLowerCase() === 'kg' ? 'Kg' : 'Pcs', price, discount: 0, memo: '' };
+            return [{ productId: product.id, qty, unit: rawUnit.toLowerCase() === 'kg' ? 'Kg' : 'Pcs', price, discount: 0, memo: '' }];
         } catch (error) {
             throw new Error(`Line ${line.number}: ${error.message}`);
         }
     });
+
+    if (!items.length) {
+        throw new Error(`Line ${itemLines[0].number}: Include at least one item with a nonzero amount for this bill.`);
+    }
 
     return { date, customerId: customer.id, items, prevBalance };
 }

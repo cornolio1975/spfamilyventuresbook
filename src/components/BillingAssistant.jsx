@@ -47,7 +47,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     Bill shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date once on the first line. For each bill, enter the customer code, items and optional Bal. Put --- between bills. All bills use the first date.
+                    Enter the date once on the first line. For each bill, enter the customer code, items and optional Bal. Put --- between bills. All bills use the first date. Items worth RM 0.00 are skipped.
                 </p>
                 <textarea
                     id="billing-shorthand"
