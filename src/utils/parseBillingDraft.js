@@ -51,7 +51,7 @@ export function parseBillingDraft(input, customers, products, codes) {
 
     const items = itemLines.map(line => {
         try {
-            if (/^bal(?:\s|:|$)/i.test(line.text)) throw new Error('Put one balance at the end, for example Bal 2780.');
+            if (/^bal(?:\s|:|$)/i.test(line.text)) throw new Error('Put one balance at the end, for example Bal 0.');
             const match = line.text.match(ITEM_LINE);
             if (!match) throw new Error('Use item code, quantity with unit, and unit price. Example: APP 14kg 8.70.');
 

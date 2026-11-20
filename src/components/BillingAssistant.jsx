@@ -44,7 +44,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                         setError('');
                         setApplied(false);
                     }}
-                    placeholder={'Date 21/11/2026\nHPL\nAPH 30kg 7.90\nAKJ 23kg 13.10\nATH 12pc 5.90\nBal 2780'}
+                    placeholder={'Date 01/01/2026\nHPL\nAPH 2kg 8.00\nATH 1pc 6.00\nBal 0'}
                     className="w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
                 />
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
