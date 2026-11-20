@@ -40,7 +40,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     Bill shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date once, then the customer code, items and optional Bal for each bill. Put a divider such as --- on its own line between customers to save multiple bills together.
+                    Start with the date, then enter the customer code, items and optional Bal. Put --- between bills. After each divider, you can enter a date or carry forward the previous date.
                 </p>
                 <textarea
                     id="billing-shorthand"

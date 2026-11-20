@@ -21,14 +21,7 @@ export function parseBillingBatch(input, customers, products, codes) {
     const dateMatch = lines[0]?.text.match(DATE_LINE);
     if (!dateMatch) throw new Error('Start with a date such as 21/11/26 or Date 21/11/2026.');
 
-    const [, day, month, rawYear] = dateMatch;
-    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
-    const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-    const checkedDate = new Date(`${date}T00:00:00Z`);
-    if (Number(year) === 0 || !Number.isFinite(checkedDate.getTime()) ||
-        checkedDate.toISOString().slice(0, 10) !== date) {
-        throw new Error('Enter a valid bill date.');
-    }
+    let date = parseBillDate(dateMatch, lines[0].number);
 
     const blocks = [[]];
     for (const line of lines.slice(1)) {
@@ -43,7 +36,23 @@ export function parseBillingBatch(input, customers, products, codes) {
         throw new Error(`Line ${lines.at(-1).number}: Add a bill after the divider.`);
     }
 
-    return blocks.map(block => parseBill(block, date, customers, products, codes));
+    return blocks.map(block => {
+        const blockDate = block[0]?.text.match(DATE_LINE);
+        if (blockDate) date = parseBillDate(blockDate, block.shift().number);
+        return parseBill(block, date, customers, products, codes);
+    });
+}
+
+function parseBillDate(dateMatch, lineNumber) {
+    const [, day, month, rawYear] = dateMatch;
+    const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+    const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    const checkedDate = new Date(`${date}T00:00:00Z`);
+    if (Number(year) === 0 || !Number.isFinite(checkedDate.getTime()) ||
+        checkedDate.toISOString().slice(0, 10) !== date) {
+        throw new Error(`Line ${lineNumber}: Enter a valid bill date.`);
+    }
+    return date;
 }
 
 export function parseBillingDraft(input, customers, products, codes) {
