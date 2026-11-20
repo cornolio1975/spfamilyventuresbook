@@ -13,7 +13,8 @@ import {
     Calendar,
     ArrowRight,
     Database,
-    Receipt
+    Receipt,
+    Sparkles
 } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 import poultryLogo from '../assets/poultry_logo.jpg';
@@ -327,7 +328,7 @@ export default function Landing() {
             {/* Main Content */}
             <div className="max-w-5xl mx-auto px-4 -mt-24">
                 {/* Quick Actions */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <button
                         onClick={() => navigate('/sales/new')}
                         className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center text-center group"
@@ -337,6 +338,17 @@ export default function Landing() {
                         </div>
                         <h3 className="text-lg font-bold text-gray-800">New Sale</h3>
                         <p className="text-sm text-gray-500 mt-2">Create a new invoice for a customer</p>
+                    </button>
+
+                    <button
+                        onClick={() => navigate('/sales/new?assistant=1')}
+                        className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center text-center group"
+                    >
+                        <div className="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-teal-100 transition-colors">
+                            <Sparkles size={32} className="text-teal-700" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-800">Billing Assistant</h3>
+                        <p className="text-sm text-gray-500 mt-2">Create an invoice from shorthand</p>
                     </button>
 
                     <button

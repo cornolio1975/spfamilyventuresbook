@@ -3,10 +3,11 @@ import { formatDateShort } from '../utils/dateUtils';
 import { useReactToPrint } from 'react-to-print';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 import poultryLogo from '../assets/poultry_logo.jpg';
+import BillingAssistant from '../components/BillingAssistant';
 
 
 const InvoiceView = ({ settings, customer, saleDate, id, items, products, prevBalance, prevBalanceMemo, subtotal, paidAmount, grandTotal }) => {
@@ -172,6 +173,7 @@ const InvoiceView = ({ settings, customer, saleDate, id, items, products, prevBa
 
 export default function NewSale() {
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const settings = useSettings();
     const customers = useLiveQuery(() => db.customers.toArray());
@@ -186,7 +188,9 @@ export default function NewSale() {
     const [isViewMode, setIsViewMode] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [showToolbar, setShowToolbar] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
     const componentRef = useRef();
+    const saveInProgress = useRef(false);
 
     const handlePrint = useReactToPrint({
         contentRef: componentRef,
@@ -262,7 +266,17 @@ export default function NewSale() {
         return calculateSubtotal() + parseFloat(prevBalance || 0);
     };
 
+    const applyBillingDraft = (draft) => {
+        setSaleDate(draft.date);
+        setSelectedCustomer(draft.customerId);
+        setItems(draft.items);
+        setPrevBalance(0);
+        setPrevBalanceMemo('');
+        setPaidAmount(0);
+    };
+
     const handleSave = async (shouldPrint = false) => {
+        if (saveInProgress.current) return;
         if (!selectedCustomer) {
             alert('Please select a customer');
             return;
@@ -290,6 +304,8 @@ export default function NewSale() {
             grandTotal: calculateGrandTotal()
         };
 
+        saveInProgress.current = true;
+        setIsSaving(true);
         try {
             let savedId = id ? parseInt(id) : null;
             if (savedId) {
@@ -320,6 +336,9 @@ export default function NewSale() {
         } catch (error) {
             console.error('Error saving sale:', error);
             alert('Failed to save sale');
+        } finally {
+            saveInProgress.current = false;
+            setIsSaving(false);
         }
     };
 
@@ -423,9 +442,10 @@ export default function NewSale() {
                                 </button>
                                 <button
                                     onClick={() => handleSave(false)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                    disabled={isSaving}
+                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                                 >
-                                    <Save size={18} /> Save
+                                    <Save size={18} /> {isSaving ? 'Saving…' : 'Save'}
                                 </button>
                             </>
                         )}
@@ -463,6 +483,15 @@ export default function NewSale() {
                 </div>
             ) : (
                 <div className="max-w-5xl mx-auto p-4 space-y-6">
+                    {!id && (
+                        <BillingAssistant
+                            customers={customers}
+                            products={products}
+                            open={searchParams.get('assistant') === '1'}
+                            hasItems={items.length > 0}
+                            onApply={applyBillingDraft}
+                        />
+                    )}
                     {/* Sale Details Card */}
                     <div className="bg-white p-4 rounded-lg shadow-sm">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
