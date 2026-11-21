@@ -27,7 +27,7 @@ export default function MainLayout() {
     ];
 
     return (
-        <div className="flex flex-col h-screen bg-gray-50 print:h-auto print:block">
+        <div className="flex flex-col h-dvh bg-gray-50 print:h-auto print:block">
             {location.pathname === '/' && <BillingCodeReference />}
             <main className="flex-1 overflow-y-auto pb-20 print:pb-0 print:h-auto print:overflow-visible">
                 <Outlet />
