@@ -1,83 +1,100 @@
-import React, { useState } from 'react';
+import { useRef, useState } from 'react';
 import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { Plus, Search, Trash2, DollarSign, Edit } from 'lucide-react';
+import { Plus, Search, Trash2, Edit } from 'lucide-react';
+
+const inputClass = 'w-full rounded-md border p-2';
+const roundMoney = (amount) => Math.round((amount + Number.EPSILON) * 100) / 100;
+const lineAmount = (item) => roundMoney(item.qty * item.price - Number(item.discount));
+const blankItem = { productId: '', memo: '', qty: 1, unit: 'Kg', price: '', discount: 0 };
+
+function BillField({ label, children }) {
+    return <label className="block text-sm font-medium">{label}{children}</label>;
+}
 
 export default function VendorBills() {
     const vendorBills = useLiveQuery(() => db.vendor_purchases.orderBy('id').reverse().toArray());
     const vendors = useLiveQuery(() => db.vendors.toArray());
+    const products = useLiveQuery(() => db.products.toArray());
     const [searchTerm, setSearchTerm] = useState('');
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [formData, setFormData] = useState(null);
     const [editingBill, setEditingBill] = useState(null);
-    const [formData, setFormData] = useState({
-        vendorId: '',
-        date: formatDateShort(new Date()),
-        total: '',
-        memo: ''
-    });
+    const [isSaving, setIsSaving] = useState(false);
+    const saveInProgress = useRef(false);
 
-    const getVendorName = (id) => {
-        return vendors?.find(v => v.id === id)?.name || 'Unknown Vendor';
-    };
+    const getVendorName = (id) => vendors?.find(v => String(v.id) === String(id))?.name || 'Unknown Vendor';
 
     const handleOpenModal = (bill = null) => {
-        // Fix: Ensure we don't treat the click event as a bill object
-        if (bill && bill.id) {
-            setEditingBill(bill);
-            setFormData({
-                vendorId: bill.vendorId,
-                date: bill.date,
-                total: bill.total,
-                memo: bill.memo || ''
-            });
-        } else {
-            setEditingBill(null);
-            setFormData({
-                vendorId: '',
-                date: formatDateShort(new Date()),
-                total: '',
-                memo: ''
-            });
-        }
-        setIsModalOpen(true);
+        setEditingBill(bill);
+        setFormData({
+            vendorId: bill?.vendorId ?? '',
+            date: bill?.date ?? formatDateShort(new Date()),
+            total: bill?.total ?? '',
+            memo: bill?.memo ?? '',
+            prevBalance: bill?.prevBalance ?? 0,
+            paidAmount: bill?.paidAmount ?? 0,
+            items: bill ? (bill.items ?? []) : [{ ...blankItem }]
+        });
     };
 
     const handleCloseModal = () => {
-        setIsModalOpen(false);
+        setFormData(null);
         setEditingBill(null);
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const updateField = (field, value) => setFormData(data => ({ ...data, [field]: value }));
+    const updateItem = (index, field, value) => setFormData(data => ({
+        ...data,
+        items: data.items.map((item, position) => position === index ? { ...item, [field]: value } : item)
+    }));
+
+    const isLegacy = Boolean(editingBill && !editingBill.items?.length);
+    const items = formData?.items ?? [];
+    const subtotal = items.length
+        ? roundMoney(items.reduce((sum, item) => sum + lineAmount(item), 0))
+        : Number(formData?.total ?? 0);
+    const grandTotal = roundMoney(subtotal + Number(formData?.prevBalance ?? 0));
+    const balanceDue = roundMoney(grandTotal - Number(formData?.paidAmount ?? 0));
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+        if (saveInProgress.current) return;
+        const { vendorId, date, memo, prevBalance, paidAmount } = formData;
+        const vendor = vendors?.find(record => String(record.id) === String(vendorId));
+        if (!vendor || !date || (!isLegacy && !items.length)) {
+            alert('Select a vendor and date, and add at least one item.');
+            return;
+        }
+        const normalizedItems = items.map(item => ({
+            ...item,
+            productId: products?.find(product => String(product.id) === String(item.productId))?.id ?? item.productId,
+            qty: Number(item.qty),
+            price: Number(item.price),
+            discount: Number(item.discount),
+            total: lineAmount(item)
+        }));
+        if (normalizedItems.some(item => !item.productId || item.qty <= 0 || item.price < 0
+            || item.discount < 0 || item.discount > item.qty * item.price + 1e-9 || !Number.isFinite(item.total))) {
+            alert('Check each item, quantity, price and discount.');
+            return;
+        }
+
+        const billData = {
+            vendorId: vendor.id,
+            date,
+            memo,
+            items: normalizedItems,
+            subtotal,
+            total: subtotal,
+            prevBalance: Number(prevBalance),
+            paidAmount: Number(paidAmount),
+            grandTotal
+        };
+
+        saveInProgress.current = true;
+        setIsSaving(true);
         try {
-            console.log('Saving vendor bill:', formData);
-
-            const vendorId = parseInt(formData.vendorId);
-            const total = parseFloat(formData.total);
-
-            if (!vendorId || isNaN(vendorId)) {
-                alert('Please select a valid vendor.');
-                return;
-            }
-
-            if (isNaN(total)) {
-                alert('Please enter a valid total amount.');
-                return;
-            }
-
-            if (!formData.date) {
-                alert('Please select a valid date.');
-                return;
-            }
-
-            const billData = {
-                vendorId: vendorId,
-                date: String(formData.date), // Ensure date is string
-                total: total,
-                memo: formData.memo
-            };
-
             if (editingBill) {
                 await db.vendor_purchases.update(editingBill.id, billData);
             } else {
@@ -86,11 +103,10 @@ export default function VendorBills() {
             handleCloseModal();
         } catch (error) {
             console.error('Failed to save vendor bill:', error);
-            // Diagnostic check
-            const dbVer = db.verno;
-            const schema = db.vendor_purchases ? JSON.stringify(db.vendor_purchases.schema) : 'Table Missing';
-
-            alert(`DEBUG INFO:\nError: ${error.name} - ${error.message}\n\nDB Version: ${dbVer}\nTable Schema: ${schema}\n\nPlease send me this screenshot!`);
+            alert('Unable to save the vendor bill. Please try again.');
+        } finally {
+            saveInProgress.current = false;
+            setIsSaving(false);
         }
     };
 
@@ -112,7 +128,7 @@ export default function VendorBills() {
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold text-gray-800">Vendor Bills</h1>
                 <button
-                    onClick={handleOpenModal}
+                    onClick={() => handleOpenModal()}
                     className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
                 >
                     <Plus size={18} /> New Bill
@@ -150,7 +166,7 @@ export default function VendorBills() {
                                 <td className="px-4 py-3 font-medium">{getVendorName(bill.vendorId)}</td>
                                 <td className="px-4 py-3 text-sm text-gray-500 italic">{bill.memo || '-'}</td>
                                 <td className="px-4 py-3 text-right font-bold text-red-600">
-                                    RM {(bill.total || 0).toFixed(2)}
+                                    RM {Number(bill.grandTotal ?? bill.total ?? 0).toFixed(2)}
                                 </td>
                                 <td className="px-4 py-3 text-right space-x-2">
                                     <button
@@ -181,75 +197,87 @@ export default function VendorBills() {
                 </table>
             </div>
 
-            {/* Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                        <h2 className="text-xl font-bold mb-4">{editingBill ? 'Edit Vendor Bill' : 'New Vendor Bill'}</h2>
+            {formData && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div role="dialog" aria-modal="true" aria-labelledby="vendor-bill-title"
+                        className="max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-4 shadow-xl sm:p-6">
+                        <h2 id="vendor-bill-title" className="mb-4 text-xl font-bold">{editingBill ? 'Edit Vendor Bill' : 'New Vendor Bill'}</h2>
                         <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                                <input
-                                    type="date"
-                                    required
-                                    value={formData.date}
-                                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <BillField label="Date">
+                                    <input type="date" required value={formData.date} onChange={e => updateField('date', e.target.value)} className={inputClass} />
+                                </BillField>
+                                <BillField label="Vendor">
+                                    <select required value={formData.vendorId} onChange={e => updateField('vendorId', e.target.value)} className={inputClass}>
+                                        <option value="">Select Vendor</option>
+                                        {vendors?.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+                                    </select>
+                                </BillField>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Vendor</label>
-                                <select
-                                    required
-                                    value={formData.vendorId}
-                                    onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
-                                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                                >
-                                    <option value="">Select Vendor</option>
-                                    {vendors?.map(v => (
-                                        <option key={v.id} value={v.id}>{v.name}</option>
-                                    ))}
-                                </select>
+                            <BillField label="Bill Memo">
+                                <textarea rows="2" value={formData.memo} onChange={e => updateField('memo', e.target.value)} className={inputClass} />
+                            </BillField>
+                            {items.map((item, index) => (
+                                <fieldset key={index} className="grid grid-cols-2 gap-3 rounded-lg border p-3 sm:grid-cols-4">
+                                    <legend className="px-1 text-sm font-semibold">Item {index + 1}</legend>
+                                    <div className="col-span-2">
+                                        <BillField label="Item">
+                                            <select required value={item.productId} onChange={e => updateItem(index, 'productId', e.target.value)} className={inputClass}>
+                                                <option value="">Select Item</option>
+                                                {item.productId && products && !products.some(product => String(product.id) === String(item.productId)) && (
+                                                    <option value={item.productId}>Archived item #{item.productId}</option>
+                                                )}
+                                                {products?.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}
+                                            </select>
+                                        </BillField>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <BillField label="Item Memo">
+                                            <input value={item.memo} onChange={e => updateItem(index, 'memo', e.target.value)} className={inputClass} />
+                                        </BillField>
+                                    </div>
+                                    <BillField label="Qty">
+                                        <input type="number" required min="0" step="any" value={item.qty} onChange={e => updateItem(index, 'qty', e.target.value)} className={inputClass} />
+                                    </BillField>
+                                    <BillField label="Unit">
+                                        <select value={item.unit} onChange={e => updateItem(index, 'unit', e.target.value)} className={inputClass}>
+                                            <option value="Kg">Kg</option>
+                                            <option value="Pcs">Pcs</option>
+                                        </select>
+                                    </BillField>
+                                    <BillField label="Unit Price (RM)">
+                                        <input type="number" required min="0" step="0.01" value={item.price} onChange={e => updateItem(index, 'price', e.target.value)} className={inputClass} />
+                                    </BillField>
+                                    <BillField label="Discount (RM)">
+                                        <input type="number" min="0" step="0.01" value={item.discount} onChange={e => updateItem(index, 'discount', e.target.value)} className={inputClass} />
+                                    </BillField>
+                                    <button type="button" onClick={() => updateField('items', items.filter((_, position) => index !== position))}
+                                        className="col-span-2 justify-self-start text-sm text-red-700">Remove item</button>
+                                    <output className="col-span-2 text-right text-sm font-semibold">Total RM {lineAmount(item).toFixed(2)}</output>
+                                </fieldset>
+                            ))}
+                            <button type="button" onClick={() => updateField('items', [...items, { ...blankItem }])}
+                                className="flex items-center gap-1 rounded-md border px-3 py-2 text-sm font-medium text-blue-700"><Plus size={16} /> Add Item</button>
+                            {isLegacy && !items.length && (
+                                <BillField label="Purchase Amount (RM)">
+                                    <input type="number" required min="0" step="0.01" value={formData.total} onChange={e => updateField('total', e.target.value)} className={inputClass} />
+                                </BillField>
+                            )}
+                            <div className="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3">
+                                <BillField label="Previous Balance (RM)">
+                                    <input type="number" step="0.01" value={formData.prevBalance} onChange={e => updateField('prevBalance', e.target.value)} className={inputClass} />
+                                </BillField>
+                                <BillField label="Amount Paid (RM)">
+                                    <input type="number" min="0" step="0.01" value={formData.paidAmount} onChange={e => updateField('paidAmount', e.target.value)} className={inputClass} />
+                                </BillField>
+                                <span className="col-span-2 flex justify-between text-sm">Subtotal <strong>RM {subtotal.toFixed(2)}</strong></span>
+                                <span className="col-span-2 flex justify-between font-bold">Grand Total <span>RM {grandTotal.toFixed(2)}</span></span>
+                                <span className="col-span-2 flex justify-between text-sm">Balance Due <strong>RM {balanceDue.toFixed(2)}</strong></span>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount (RM)</label>
-                                <div className="relative">
-                                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        required
-                                        value={formData.total}
-                                        onChange={(e) => setFormData({ ...formData, total: e.target.value })}
-                                        className="w-full pl-10 p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                                        placeholder="0.00"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Memo (Optional)</label>
-                                <textarea
-                                    value={formData.memo}
-                                    onChange={(e) => setFormData({ ...formData, memo: e.target.value })}
-                                    className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                                    rows="2"
-                                    placeholder="Notes or description..."
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    onClick={handleCloseModal}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                >
-                                    Save
-                                </button>
+                            <div className="flex justify-end gap-3">
+                                <button type="button" disabled={isSaving} onClick={handleCloseModal} className="rounded-lg px-4 py-2 text-gray-600 hover:bg-gray-100">Cancel</button>
+                                <button type="submit" disabled={isSaving || (!isLegacy && !items.length)}
+                                    className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50">{isSaving ? 'Saving…' : 'Save'}</button>
                             </div>
                         </form>
                     </div>

@@ -5,6 +5,11 @@ import { db } from '../db/db';
 import { Calendar, TrendingUp, Users, Package, DollarSign, History, Printer, ShoppingBag } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 
+const purchaseAmount = (bill) => Number(bill.subtotal ?? bill.total) || 0;
+const formatQuantities = (quantities) => Object.entries(quantities)
+    .map(([unit, qty]) => `${qty.toFixed(2)} ${unit}`.trim())
+    .join(' / ') || '—';
+
 export default function Reports() {
     const [dateRange, setDateRange] = useState({
         start: formatDateShort(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
@@ -36,9 +41,13 @@ export default function Reports() {
         documentTitle: `Customer_History_${selectedCustomer}_${dateRange.start}_${dateRange.end}`,
     });
 
+    const purchasesInRange = useMemo(() => vendorBills?.filter(
+        bill => bill.date >= dateRange.start && bill.date <= dateRange.end
+    ), [vendorBills, dateRange.start, dateRange.end]);
+
     // Aggregation Logic
     const stats = useMemo(() => {
-        if (!sales || !products || !customers) return null;
+        if (!sales || !products || !customers || !purchasesInRange) return null;
 
         const summary = {
             revenue: 0,
@@ -47,7 +56,27 @@ export default function Reports() {
             count: sales.length
         };
 
-        const productStats = {};
+        const productStats = new Map();
+        const getProductStats = (id) => {
+            const key = String(id);
+            if (!productStats.has(key)) {
+                productStats.set(key, {
+                    id: key,
+                    name: products.find(product => String(product.id) === key)?.name || 'Unknown',
+                    sold: {},
+                    bought: {},
+                    revenue: 0
+                });
+            }
+            return productStats.get(key);
+        };
+
+        for (const bill of purchasesInRange) {
+            for (const item of bill.items ?? []) {
+                const { bought } = getProductStats(item.productId);
+                bought[item.unit] = (bought[item.unit] || 0) + (Number(item.qty) || 0);
+            }
+        }
         const customerStats = {};
 
         sales.forEach(sale => {
@@ -55,20 +84,11 @@ export default function Reports() {
             summary.paid += sale.paidAmount || 0;
             summary.balance += ((sale.grandTotal || 0) - (sale.paidAmount || 0));
 
-            // Product Aggregation
-            sale.items.forEach(item => {
-                if (!productStats[item.productId]) {
-                    productStats[item.productId] = {
-                        id: item.productId,
-                        name: products.find(p => p.id === item.productId)?.name || 'Unknown',
-                        qty: 0,
-                        revenue: 0,
-                        unit: item.unit
-                    };
-                }
-                productStats[item.productId].qty += parseFloat(item.qty) || 0;
-                productStats[item.productId].revenue += ((item.qty * item.price) - (item.discount || 0));
-            });
+            for (const item of sale.items ?? []) {
+                const product = getProductStats(item.productId);
+                product.sold[item.unit] = (product.sold[item.unit] || 0) + (Number(item.qty) || 0);
+                product.revenue += (item.qty * item.price) - (item.discount || 0);
+            }
 
             // Customer Aggregation
             if (!customerStats[sale.customerId]) {
@@ -85,38 +105,29 @@ export default function Reports() {
 
         return {
             summary,
-            products: Object.values(productStats).sort((a, b) => b.revenue - a.revenue),
+            products: [...productStats.values()].sort((a, b) => b.revenue - a.revenue),
             customers: Object.values(customerStats).sort((a, b) => b.total - a.total)
         };
-    }, [sales, products, customers]);
+    }, [sales, products, customers, purchasesInRange]);
 
     // Daily summary aggregation
     const dailyStats = useMemo(() => {
-        if (!sales || !vendorBills) return null;
-        // Helper to format date string (YYYY-MM-DD)
-        const formatKey = (dateStr) => new Date(dateStr).toISOString().split('T')[0];
-        const dailyMap = {};
-        // Aggregate sales per day
-        sales.forEach(sale => {
-            const key = formatKey(sale.date);
-            if (!dailyMap[key]) dailyMap[key] = { sales: 0, vendorBills: 0 };
-            dailyMap[key].sales += sale.subtotal || 0;
-        });
-        // Aggregate vendor bills per day
-        vendorBills.forEach(bill => {
-            const key = formatKey(bill.date);
-            if (!dailyMap[key]) dailyMap[key] = { sales: 0, vendorBills: 0 };
-            dailyMap[key].vendorBills += bill.total || 0;
-        });
-        // Convert to array sorted by date descending
-        const result = Object.entries(dailyMap).map(([date, data]) => ({
-            date,
-            sales: data.sales,
-            vendorBills: data.vendorBills,
-            netProfit: data.sales - data.vendorBills
-        })).sort((a, b) => new Date(b.date) - new Date(a.date));
-        return result;
-    }, [sales, vendorBills]);
+        if (!sales || !purchasesInRange) return null;
+        const dailyMap = new Map();
+        const getDay = (date) => {
+            if (!dailyMap.has(date)) dailyMap.set(date, { date, sales: 0, vendorBills: 0 });
+            return dailyMap.get(date);
+        };
+        for (const sale of sales) {
+            getDay(sale.date).sales += Number(sale.subtotal) || 0;
+        }
+        for (const bill of purchasesInRange) {
+            getDay(bill.date).vendorBills += purchaseAmount(bill);
+        }
+        return [...dailyMap.values()]
+            .map(day => ({ ...day, netProfit: day.sales - day.vendorBills }))
+            .sort((a, b) => b.date.localeCompare(a.date));
+    }, [sales, purchasesInRange]);
 
     // Fetch specific customer data for Balance Calculation (All Time) & History (Filtered)
     const customerRecords = useLiveQuery(async () => {
@@ -194,24 +205,12 @@ export default function Reports() {
 
     }, [customerRecords, dateRange]);
 
-    // Filter Vendor Bills
-    const filteredVendorBills = useMemo(() => {
-        if (!vendorBills) return [];
-        return vendorBills.filter(bill => {
-            const dateMatch = bill.date >= dateRange.start && bill.date <= dateRange.end;
-            const vendorMatch = selectedVendor ? String(bill.vendorId) === String(selectedVendor) : true;
-            return dateMatch && vendorMatch;
-        }).sort((a, b) => new Date(b.date) - new Date(a.date));
-    }, [vendorBills, dateRange, selectedVendor]);
+    const filteredVendorBills = useMemo(() => (purchasesInRange ?? [])
+        .filter(bill => !selectedVendor || String(bill.vendorId) === String(selectedVendor))
+        .sort((a, b) => b.date.localeCompare(a.date)), [purchasesInRange, selectedVendor]);
 
-    const totalVendorBills = filteredVendorBills.reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
-
-    const totalBillsForNetProfit = useMemo(() => {
-        if (!vendorBills) return 0;
-        return vendorBills
-            .filter(bill => bill.date >= dateRange.start && bill.date <= dateRange.end)
-            .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
-    }, [vendorBills, dateRange]);
+    const totalVendorBills = filteredVendorBills.reduce((sum, bill) => sum + purchaseAmount(bill), 0);
+    const totalBillsForNetProfit = purchasesInRange?.reduce((sum, bill) => sum + purchaseAmount(bill), 0) ?? 0;
 
     const getProductName = (id) => {
         return products?.find(p => p.id === id)?.name || 'Unknown Product';
@@ -407,6 +406,7 @@ export default function Reports() {
                 )}
                 {activeTab === 'daily' && dailyStats && (
                     <div className="overflow-x-auto mt-6">
+                        <p className="mb-3 text-sm text-gray-600">Daily net profit is sales minus vendor purchases recorded on the same date.</p>
                         <table className="w-full text-sm text-left">
                             <thead className="bg-gray-50 text-gray-600 font-bold border-b">
                                 <tr>
@@ -442,6 +442,7 @@ export default function Reports() {
                                 <tr>
                                     <th className="p-3">Product Name</th>
                                     <th className="p-3 text-center">Units Sold</th>
+                                    <th className="p-3 text-center">Units Bought</th>
                                     <th className="p-3 text-right">Total Revenue</th>
                                 </tr>
                             </thead>
@@ -449,13 +450,14 @@ export default function Reports() {
                                 {stats.products.map(product => (
                                     <tr key={product.id} className="hover:bg-gray-50">
                                         <td className="p-3 font-medium">{product.name}</td>
-                                        <td className="p-3 text-center">{product.qty.toFixed(2)} {product.unit}</td>
+                                        <td className="p-3 text-center">{formatQuantities(product.sold)}</td>
+                                        <td className="p-3 text-center">{formatQuantities(product.bought)}</td>
                                         <td className="p-3 text-right font-bold">RM {product.revenue.toFixed(2)}</td>
                                     </tr>
                                 ))}
                                 {stats.products.length === 0 && (
                                     <tr>
-                                        <td colSpan="3" className="p-8 text-center text-gray-500">No product data available.</td>
+                                        <td colSpan="4" className="p-8 text-center text-gray-500">No product data available.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -514,7 +516,7 @@ export default function Reports() {
                                             {vendors?.find(v => String(v.id) === String(bill.vendorId))?.name || 'Unknown'}
                                         </td>
                                         <td className="p-3 text-gray-600">{bill.memo || '-'}</td>
-                                        <td className="p-3 text-right font-bold text-red-600">{parseFloat(bill.total || 0).toFixed(2)}</td>
+                                        <td className="p-3 text-right font-bold text-red-600">{purchaseAmount(bill).toFixed(2)}</td>
                                     </tr>
                                 ))}
                                 {filteredVendorBills.length === 0 && (
