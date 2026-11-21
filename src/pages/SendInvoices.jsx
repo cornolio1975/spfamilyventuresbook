@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import InvoiceView from '../components/InvoiceView';
+import InvoiceFitDialog from '../components/InvoiceFitDialog';
 import { db, useLiveQuery, useSettings } from '../db/hooks';
 import { formatDateShort } from '../utils/dateUtils';
 import { getInvoiceAmounts, getInvoiceNumber, getWhatsAppNumber } from '../utils/invoiceSharing';
@@ -12,6 +13,7 @@ const actionClass = 'inline-flex items-center rounded-lg border px-4 py-2 text-s
 function InvoiceDelivery({ sale, customer, products, settings }) {
     const invoiceRef = useRef(null);
     const mounted = useRef(false);
+    const [isFitOpen, setIsFitOpen] = useState(false);
     const [imageUrl, setImageUrl] = useState('');
     const [isCapturing, setIsCapturing] = useState(false);
     const [error, setError] = useState('');
@@ -57,6 +59,12 @@ function InvoiceDelivery({ sale, customer, products, settings }) {
         }
     };
 
+    const invoice = (
+        <InvoiceView settings={settings} customer={customer} saleDate={sale.date} id={sale.id}
+            items={sale.items ?? []} products={products} prevBalance={prevBalance}
+            prevBalanceMemo={sale.memo} subtotal={subtotal} paidAmount={paidAmount} grandTotal={grandTotal} />
+    );
+
     return (
         <section className="space-y-4">
             <div className="rounded-lg border bg-white p-4">
@@ -70,6 +78,9 @@ function InvoiceDelivery({ sale, customer, products, settings }) {
                     <p role="status" className="mt-1 text-sm text-red-700">Add a valid WhatsApp number under Customers for {customer.name}.</p>
                 )}
                 <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setIsFitOpen(true)} className={`${actionClass} border-gray-300 text-gray-800`}>
+                        Fit Full Invoice
+                    </button>
                     {imageUrl ? (
                         <a href={imageUrl} download={`${invoiceNumber}.png`} className={`${actionClass} border-blue-700 text-blue-800`}>Download Invoice Image</a>
                     ) : (
@@ -87,11 +98,12 @@ function InvoiceDelivery({ sale, customer, products, settings }) {
                 </div>
                 {error && <p role="alert" className="mt-2 text-sm text-red-700">{error}</p>}
             </div>
+            {isFitOpen && (
+                <InvoiceFitDialog onClose={() => setIsFitOpen(false)}>{invoice}</InvoiceFitDialog>
+            )}
             <div className="overflow-hidden rounded-lg border bg-white">
                 <div ref={invoiceRef}>
-                    <InvoiceView settings={settings} customer={customer} saleDate={sale.date} id={sale.id}
-                        items={sale.items ?? []} products={products} prevBalance={prevBalance}
-                        prevBalanceMemo={sale.memo} subtotal={subtotal} paidAmount={paidAmount} grandTotal={grandTotal} />
+                    {invoice}
                 </div>
             </div>
         </section>

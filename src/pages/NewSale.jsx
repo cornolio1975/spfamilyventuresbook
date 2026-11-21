@@ -5,8 +5,9 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
 import { saveAssistantSales } from '../db/saveAssistantSales';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, ChevronLeft, ChevronRight } from 'lucide-react';
 import InvoiceView from '../components/InvoiceView';
+import InvoiceFitDialog from '../components/InvoiceFitDialog';
 import BillingAssistant from '../components/BillingAssistant';
 
 export default function NewSale() {
@@ -25,7 +26,7 @@ export default function NewSale() {
     const [paidAmount, setPaidAmount] = useState(0);
     const [isViewMode, setIsViewMode] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
-    const [showToolbar, setShowToolbar] = useState(true);
+    const [isFitOpen, setIsFitOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const componentRef = useRef();
     const saveInProgress = useRef(false);
@@ -236,117 +237,112 @@ export default function NewSale() {
 
 
 
+    const invoice = isViewMode && (
+        <InvoiceView
+            settings={settings}
+            customer={getCustomer()}
+            saleDate={saleDate}
+            id={id}
+            items={items}
+            products={products}
+            prevBalance={prevBalance}
+            prevBalanceMemo={prevBalanceMemo}
+            paidAmount={paidAmount}
+            subtotal={calculateSubtotal()}
+            grandTotal={calculateGrandTotal()}
+        />
+    );
+
     return (
         <div className="min-h-screen bg-gray-50 pb-24 print:bg-white print:pb-0">
             {/* Toolbar */}
-            {/* Toolbar */}
-            {showToolbar && (
-                <div className="sticky top-0 bg-white shadow-sm p-4 flex justify-between items-center z-10 no-print">
-                    <div className="flex items-center gap-2">
-                        <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full" title="Back to Dashboard">
-                            <ArrowLeft size={20} />
-                        </button>
-                        <h1 className="text-xl font-bold">{id ? 'Invoice View' : 'New Sale'}</h1>
+            <div className="sticky top-0 bg-white shadow-sm p-2 sm:p-4 flex flex-wrap gap-2 justify-between items-center z-10 no-print">
+                <div className="flex items-center gap-2">
+                    <button onClick={() => navigate('/')} className="p-2 hover:bg-gray-100 rounded-full" title="Back to Dashboard">
+                        <ArrowLeft size={20} />
+                    </button>
+                    <h1 className="text-xl font-bold">{id ? 'Invoice View' : 'New Sale'}</h1>
 
-                        {/* Navigation Arrows */}
-                        {id && (
-                            <div className="flex items-center ml-2 gap-1 border-l pl-2 border-gray-200">
-                                <button
-                                    onClick={() => prevSaleId && navigate(`/sales/${prevSaleId}`)}
-                                    disabled={!prevSaleId}
-                                    className={`p-1.5 rounded-md ${!prevSaleId ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
-                                    title="Previous Invoice"
-                                >
-                                    <ChevronLeft size={20} />
-                                </button>
-                                <button
-                                    onClick={() => nextSaleId && navigate(`/sales/${nextSaleId}`)}
-                                    disabled={!nextSaleId}
-                                    className={`p-1.5 rounded-md ${!nextSaleId ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
-                                    title="Next Invoice"
-                                >
-                                    <ChevronRight size={20} />
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex gap-2">
-                        {isViewMode ? (
-                            <>
-                                <button
-                                    onClick={() => setShowToolbar(false)}
-                                    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                                    title="Screenshot Mode"
-                                >
-                                    <Maximize size={20} />
-                                </button>
-                                <button
-                                    onClick={() => setIsViewMode(false)}
-                                    className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-50 rounded-lg"
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={handlePrint}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
-                                >
-                                    <Printer size={18} /> Save as PDF
-                                </button>
-                                <button
-                                    onClick={() => navigate('/sales/new')}
-                                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                                >
-                                    <Plus size={18} /> New Sale
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={() => setIsViewMode(true)}
-                                    className="flex items-center gap-2 px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg"
-                                >
-                                    <Eye size={18} /> Preview
-                                </button>
-                                <button
-                                    onClick={() => handleSave(false)}
-                                    disabled={isSaving}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    <Save size={18} /> {isSaving ? 'Saving…' : 'Save'}
-                                </button>
-                            </>
-                        )}
-                    </div>
+                    {/* Navigation Arrows */}
+                    {id && (
+                        <div className="flex items-center ml-2 gap-1 border-l pl-2 border-gray-200">
+                            <button
+                                onClick={() => prevSaleId && navigate(`/sales/${prevSaleId}`)}
+                                disabled={!prevSaleId}
+                                className={`p-1.5 rounded-md ${!prevSaleId ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+                                title="Previous Invoice"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+                            <button
+                                onClick={() => nextSaleId && navigate(`/sales/${nextSaleId}`)}
+                                disabled={!nextSaleId}
+                                className={`p-1.5 rounded-md ${!nextSaleId ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:bg-gray-100'}`}
+                                title="Next Invoice"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
+                        </div>
+                    )}
                 </div>
-            )}
+                <div className="flex flex-wrap gap-2">
+                    {isViewMode ? (
+                        <>
+                            <button
+                                onClick={() => setIsFitOpen(true)}
+                                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                title="Fit Full Invoice"
+                                aria-label="Fit Full Invoice"
+                            >
+                                <Maximize size={20} />
+                            </button>
+                            <button
+                                onClick={() => setIsViewMode(false)}
+                                className="px-4 py-2 text-blue-600 font-medium hover:bg-blue-50 rounded-lg"
+                            >
+                                Edit
+                            </button>
+                            <button
+                                onClick={handlePrint}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900"
+                            >
+                                <Printer size={18} /> Save as PDF
+                            </button>
+                            <button
+                                onClick={() => navigate('/sales/new')}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                            >
+                                <Plus size={18} /> New Sale
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => setIsViewMode(true)}
+                                className="flex items-center gap-2 px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg"
+                            >
+                                <Eye size={18} /> Preview
+                            </button>
+                            <button
+                                onClick={() => handleSave(false)}
+                                disabled={isSaving}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                <Save size={18} /> {isSaving ? 'Saving…' : 'Save'}
+                            </button>
+                        </>
+                    )}
+                </div>
+            </div>
 
-            {/* Floating Exit Screenshot Mode Button */}
-            {!showToolbar && (
-                <button
-                    onClick={() => setShowToolbar(true)}
-                    className="fixed top-4 right-4 z-50 p-2 bg-gray-800 text-white rounded-full shadow-lg opacity-50 hover:opacity-100 transition-opacity no-print"
-                    title="Exit Screenshot Mode"
-                >
-                    <X size={20} />
-                </button>
+            {isFitOpen && (
+                <InvoiceFitDialog onClose={() => setIsFitOpen(false)}>{invoice}</InvoiceFitDialog>
             )}
 
             {/* Content */}
             {isViewMode ? (
                 <div ref={componentRef}>
-                    <InvoiceView
-                        settings={settings}
-                        customer={getCustomer()}
-                        saleDate={saleDate}
-                        id={id}
-                        items={items}
-                        products={products}
-                        prevBalance={prevBalance}
-                        prevBalanceMemo={prevBalanceMemo}
-                        paidAmount={paidAmount}
-                        subtotal={calculateSubtotal()}
-                        grandTotal={calculateGrandTotal()}
-                    />
+                    {invoice}
                 </div>
             ) : (
                 <div className="max-w-5xl mx-auto p-4 space-y-6">
@@ -523,7 +519,7 @@ export default function NewSale() {
 
                         <div className="border-t pt-4">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Previous Balance</label>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <input
                                     type="text"
                                     placeholder="Memo (e.g. Bal b/f)"
