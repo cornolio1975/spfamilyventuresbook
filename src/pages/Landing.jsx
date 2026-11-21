@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formatDate, formatDateShort } from '../utils/dateUtils';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
 import { seedDatabase } from '../utils/seedData';
@@ -177,6 +177,15 @@ export default function Landing() {
                             </div>
                         </div>
                     </div>
+
+                    <Link
+                        to="/sales"
+                        className="mb-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 font-semibold text-blue-700 shadow-sm hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    >
+                        <Receipt size={18} aria-hidden="true" />
+                        Recent Sales
+                        <ArrowRight size={16} aria-hidden="true" />
+                    </Link>
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
