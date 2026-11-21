@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
-import { Plus, Search, FileText, Trash2 } from 'lucide-react';
+import { Plus, Search, FileText, Send, Trash2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Sales() {
@@ -36,14 +36,16 @@ export default function Sales() {
 
     return (
         <div className="p-4 pb-24 max-w-6xl mx-auto">
-            <div className="flex justify-between items-center mb-6">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                 <h1 className="text-2xl font-bold text-gray-800">Sales Dashboard</h1>
-                <Link
-                    to="/sales/new"
-                    className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm"
-                >
-                    <Plus size={18} /> New Sale
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                    <Link to="/sales/send" className="flex items-center gap-2 rounded-lg border border-green-700 px-3 py-2 font-medium text-green-800 hover:bg-green-50">
+                        <Send size={18} /> Send Invoices
+                    </Link>
+                    <Link to="/sales/new" className="flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-white shadow-sm hover:bg-blue-700">
+                        <Plus size={18} /> New Sale
+                    </Link>
+                </div>
             </div>
 
             {/* Search */}

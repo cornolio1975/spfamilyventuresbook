@@ -8,6 +8,7 @@ import Products from './pages/Products';
 import Customers from './pages/Customers';
 import Sales from './pages/Sales';
 import NewSale from './pages/NewSale';
+import SendInvoices from './pages/SendInvoices';
 import Vendors from './pages/Vendors';
 import VendorBills from './pages/VendorBills';
 import Reports from './pages/Reports';
@@ -28,6 +29,7 @@ function App() {
               <Route index element={<Landing />} />
               <Route path="sales" element={<Sales />} />
               <Route path="sales/new" element={<NewSale />} />
+              <Route path="sales/send" element={<SendInvoices />} />
               <Route path="sales/:id" element={<NewSale />} />
               <Route path="products" element={<Products />} />
               <Route path="customers" element={<Customers />} />
