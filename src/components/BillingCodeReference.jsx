@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
-import { Package, Users } from 'lucide-react';
+import { Package, Store, Users } from 'lucide-react';
 import { db, useLiveQuery } from '../db/hooks';
 import billingCodes from '../data/billingCodes.json';
 
 const catalogs = [
     { key: 'customers', label: 'Customer Codes', column: 'Customer', icon: Users },
+    { key: 'vendors', label: 'Vendor Codes', column: 'Vendor', icon: Store },
     { key: 'products', label: 'Item Codes', column: 'Item', icon: Package },
 ];
 
@@ -13,11 +14,17 @@ function CodeList({ catalog }) {
     const records = useLiveQuery(() => db[catalog.key].toArray(), [catalog.key]);
 
     const namesById = new Map(records?.map(({ id, name }) => [id, name]));
+    const catalogRows = catalog.key === 'vendors'
+        ? (records ?? []).map(({ id, name }) => ({
+            code: `V-${String(id).padStart(3, '0')}`,
+            name,
+        }))
+        : Object.entries(billingCodes[catalog.key])
+            .map(([code, id]) => ({ code, name: namesById.get(id) }));
     const query = search.trim().toLowerCase();
-    const rows = Object.entries(billingCodes[catalog.key])
-        .map(([code, id]) => ({ code, name: namesById.get(id) }))
+    const rows = catalogRows
         .filter(({ code, name }) => name && `${code} ${name}`.toLowerCase().includes(query))
-        .sort((a, b) => a.code.localeCompare(b.code));
+        .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 
     return (
         <>
