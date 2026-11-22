@@ -12,6 +12,7 @@ import SendInvoices from './pages/SendInvoices';
 import Vendors from './pages/Vendors';
 import VendorBills from './pages/VendorBills';
 import Reports from './pages/Reports';
+import ProductSalesReport from './pages/ProductSalesReport';
 
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -36,6 +37,7 @@ function App() {
               <Route path="vendors" element={<Vendors />} />
               <Route path="vendor-bills" element={<VendorBills />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="reports/products/:productId" element={<ProductSalesReport />} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Route>

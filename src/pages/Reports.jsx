@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { getReportDateRange, getReportSales, saleLineAmount } from '../utils/reportSales';
 import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
@@ -11,25 +13,23 @@ const formatQuantities = (quantities) => Object.entries(quantities)
     .join(' / ') || '—';
 
 export default function Reports() {
-    const [dateRange, setDateRange] = useState({
-        start: formatDateShort(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
-        end: formatDateShort(new Date())
-    });
-    const [activeTab, setActiveTab] = useState('sales'); // options: 'sales', 'products', 'customers', 'daily', 'history', 'vendor-bills'
+    const [searchParams, setSearchParams] = useSearchParams();
+    const dateRange = getReportDateRange(searchParams);
+    const activeTab = searchParams.get('tab') || 'sales';
+    const setActiveTab = (tab) => updateReportFilter('tab', tab);
+    const updateReportFilter = (key, value) => {
+        const next = new URLSearchParams(searchParams);
+        next.set(key, value);
+        setSearchParams(next, { replace: true });
+    };
+    const productReportSearch = new URLSearchParams({ tab: 'products', ...dateRange }).toString();
     const [selectedCustomer, setSelectedCustomer] = useState('');
     const [selectedVendor, setSelectedVendor] = useState('');
     const [showDetails, setShowDetails] = useState(false);
     const componentRef = useRef();
 
     // Fetch data
-    const sales = useLiveQuery(async () => {
-        const results = await db.sales
-            .where('date')
-            .between(dateRange.start, dateRange.end, true, true)
-            .toArray();
-        // Sort by date descending (latest first)
-        return results.sort((a, b) => new Date(b.date) - new Date(a.date));
-    }, [dateRange]);
+    const sales = useLiveQuery(() => getReportSales(db.sales, dateRange), [dateRange.start, dateRange.end]);
 
     const products = useLiveQuery(() => db.products.toArray());
     const customers = useLiveQuery(() => db.customers.toArray());
@@ -87,7 +87,7 @@ export default function Reports() {
             for (const item of sale.items ?? []) {
                 const product = getProductStats(item.productId);
                 product.sold[item.unit] = (product.sold[item.unit] || 0) + (Number(item.qty) || 0);
-                product.revenue += (item.qty * item.price) - (item.discount || 0);
+                product.revenue += saleLineAmount(item);
             }
 
             // Customer Aggregation
@@ -234,7 +234,7 @@ export default function Reports() {
                             <input
                                 type="date"
                                 value={dateRange.start}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                                onChange={(e) => updateReportFilter('start', e.target.value)}
                                 className="p-2 border rounded-md text-sm w-full"
                             />
                         </div>
@@ -243,7 +243,7 @@ export default function Reports() {
                             <input
                                 type="date"
                                 value={dateRange.end}
-                                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                                onChange={(e) => updateReportFilter('end', e.target.value)}
                                 className="p-2 border rounded-md text-sm w-full"
                             />
                         </div>
@@ -449,7 +449,14 @@ export default function Reports() {
                             <tbody className="divide-y">
                                 {stats.products.map(product => (
                                     <tr key={product.id} className="hover:bg-gray-50">
-                                        <td className="p-3 font-medium">{product.name}</td>
+                                        <td className="p-3 font-medium">
+                                            <Link
+                                                to={`/reports/products/${encodeURIComponent(product.id)}?${productReportSearch}`}
+                                                className="inline-block py-1 text-blue-700 underline underline-offset-2 hover:text-blue-900"
+                                            >
+                                                {product.name}
+                                            </Link>
+                                        </td>
                                         <td className="p-3 text-center">{formatQuantities(product.sold)}</td>
                                         <td className="p-3 text-center">{formatQuantities(product.bought)}</td>
                                         <td className="p-3 text-right font-bold">RM {product.revenue.toFixed(2)}</td>
