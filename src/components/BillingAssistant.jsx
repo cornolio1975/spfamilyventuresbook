@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import billingCodes from '../data/billingCodes.json';
@@ -97,6 +98,11 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     className="w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
                 />
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+                {error.startsWith('Unknown Customer code') && (
+                    <Link to="/vendor-bills?assistant=1" state={{ vendorPaymentInput: input }} className="inline-block text-sm font-medium text-blue-800 underline">
+                        Open Bill Assistant for vendor payments
+                    </Link>
+                )}
                 {message && <p role="status" className="text-sm text-green-700">{message}</p>}
                 {paymentPreviews && (
                     <div className="space-y-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm" role="status">
