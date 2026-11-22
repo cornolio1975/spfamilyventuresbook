@@ -15,8 +15,12 @@ db.version(6).stores({
     payments: '++id, customerId, date', // Customer payments
 });
 
+db.version(7).stores({
+    vendor_payments: 'id, vendorId, date'
+});
+
 // Add hooks for sync
-['customers', 'products', 'sales', 'settings', 'users', 'vendors', 'vendor_purchases', 'payments'].forEach(tableName => {
+['customers', 'products', 'sales', 'settings', 'users', 'vendors', 'vendor_purchases', 'payments', 'vendor_payments'].forEach(tableName => {
     db[tableName].hook('creating', function (primKey, obj, transaction) {
         if (transaction && transaction.source === 'firebase-sync') return;
         this.onsuccess = function (id) {

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Package, Store, Users } from 'lucide-react';
 import { db, useLiveQuery } from '../db/hooks';
+import { formatVendorCode } from '../utils/vendorBalances.js';
 import billingCodes from '../data/billingCodes.json';
 import { resolveBillingRecord } from '../utils/resolveBillingRecord.js';
 
@@ -16,7 +17,7 @@ function CodeList({ catalog }) {
 
     const catalogRows = catalog.key === 'vendors'
         ? (records ?? []).map(({ id, name }) => ({
-            code: `V-${String(id).padStart(3, '0')}`,
+            code: formatVendorCode(id),
             name,
         }))
         : Object.entries(billingCodes[catalog.key])
