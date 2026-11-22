@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Package, Store, Users } from 'lucide-react';
 import { db, useLiveQuery } from '../db/hooks';
 import billingCodes from '../data/billingCodes.json';
+import { resolveBillingRecord } from '../utils/resolveBillingRecord.js';
 
 const catalogs = [
     { key: 'customers', label: 'Customer Codes', column: 'Customer', icon: Users },
@@ -13,14 +14,16 @@ function CodeList({ catalog }) {
     const [search, setSearch] = useState('');
     const records = useLiveQuery(() => db[catalog.key].toArray(), [catalog.key]);
 
-    const namesById = new Map(records?.map(({ id, name }) => [id, name]));
     const catalogRows = catalog.key === 'vendors'
         ? (records ?? []).map(({ id, name }) => ({
             code: `V-${String(id).padStart(3, '0')}`,
             name,
         }))
         : Object.entries(billingCodes[catalog.key])
-            .map(([code, id]) => ({ code, name: namesById.get(id) }));
+            .map(([code, reference]) => ({
+                code,
+                name: resolveBillingRecord(reference, records ?? [])?.name,
+            }));
     const query = search.trim().toLowerCase();
     const rows = catalogRows
         .filter(({ code, name }) => name && `${code} ${name}`.toLowerCase().includes(query))

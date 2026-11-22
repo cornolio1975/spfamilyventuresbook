@@ -1,3 +1,4 @@
+import { resolveBillingRecord } from './resolveBillingRecord.js';
 import { hasBillableAmount } from './billingItemAmount.js';
 
 const DATE_LINE = /^(?:date\s*:?\s*)?(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/i;
@@ -9,7 +10,7 @@ const BALANCE_LINE = /^bal(?:\s*:\s*|\s+)(?:rm\s*)?(-?\d+(?:\.\d{1,2})?)$/i;
 function lookupRecord(code, aliases, records, type) {
     if (!Object.hasOwn(aliases, code)) throw new Error(`Unknown ${type} code ${code}.`);
 
-    const record = records.find(entry => entry.id === aliases[code]);
+    const record = resolveBillingRecord(aliases[code], records);
     if (!record) throw new Error(`${type} ${code} is missing from the catalog.`);
     return record;
 }
