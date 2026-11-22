@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
+import VendorBillAssistant from '../components/VendorBillAssistant';
 import { db } from '../db/db';
 import { Plus, Search, Trash2, Edit } from 'lucide-react';
 
@@ -15,6 +16,7 @@ function BillField({ label, children }) {
 
 export default function VendorBills() {
     const vendorBills = useLiveQuery(() => db.vendor_purchases.orderBy('id').reverse().toArray());
+    const vendorPayments = useLiveQuery(() => db.vendor_payments.orderBy('date').reverse().toArray());
     const vendors = useLiveQuery(() => db.vendors.toArray());
     const products = useLiveQuery(() => db.products.toArray());
     const [searchTerm, setSearchTerm] = useState('');
@@ -135,6 +137,8 @@ export default function VendorBills() {
                 </button>
             </div>
 
+            <VendorBillAssistant vendors={vendors} />
+
             {/* Search */}
             <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -196,6 +200,20 @@ export default function VendorBills() {
                     </tbody>
                 </table>
             </div>
+
+            {vendorPayments?.length > 0 && (
+                <section className="mt-5 rounded-lg border bg-white p-4">
+                    <h2 className="mb-2 font-semibold text-gray-800">Vendor Payments</h2>
+                    <ul className="divide-y text-sm">
+                        {vendorPayments.map(payment => (
+                            <li key={payment.id} className="flex flex-wrap justify-between gap-2 py-2">
+                                <span>{payment.date} · {getVendorName(payment.vendorId)}</span>
+                                <strong>RM {Number(payment.amount).toFixed(2)}</strong>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
 
             {formData && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

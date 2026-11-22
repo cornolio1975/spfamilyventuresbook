@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { vendorBalancesCents } from '../utils/vendorBalances';
 import { formatDate, formatDateShort } from '../utils/dateUtils';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -43,6 +44,11 @@ export default function Landing() {
     const products = useLiveQuery(() => db.products.toArray());
     const sales = useLiveQuery(() => db.sales.toArray());
     const vendorBills = useLiveQuery(() => db.vendor_purchases.toArray());
+    const vendorPayments = useLiveQuery(() => db.vendor_payments.toArray());
+    const totalBillsOutstanding = vendorBills && vendorPayments
+        ? [...vendorBalancesCents(vendorBills, vendorPayments, formatDateShort(new Date())).values()]
+            .reduce((sum, cents) => sum + Math.max(0, cents), 0) / 100
+        : null;
     const payments = useLiveQuery(() => db.payments.toArray());
 
     useEffect(() => {
@@ -140,7 +146,7 @@ export default function Landing() {
             const sortedSales = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
             setRecentSales(sortedSales);
         }
-    }, [sales, customers, products, vendorBills]);
+    }, [sales, customers, products, vendorBills, payments]);
 
     const handleSeedData = async () => {
         if (confirm('This will populate the database with sample data. Continue?')) {
@@ -236,6 +242,18 @@ export default function Landing() {
                                 RM {stats.totalOutstanding.toFixed(2)}
                             </p>
                         </div>
+
+                        <Link to="/vendor-bills" className="block rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md hover:bg-white/20">
+                            <div className="mb-2 flex items-center gap-3">
+                                <div className="rounded-lg bg-amber-400/20 p-2">
+                                    <Receipt size={20} className="text-amber-200" />
+                                </div>
+                                <span className="text-sm font-medium text-blue-100">Total Bills Outstanding</span>
+                            </div>
+                            <p className="text-2xl font-bold text-amber-200">
+                                {totalBillsOutstanding === null ? 'Loading…' : `RM ${totalBillsOutstanding.toFixed(2)}`}
+                            </p>
+                        </Link>
 
                         {/* Box 5: Monthly Sales */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
