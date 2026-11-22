@@ -1,4 +1,5 @@
 import { formatDateShort } from './dateUtils.js';
+import { saleSubtotalCents } from './salesTrends.js';
 
 export function getReportDateRange(searchParams) {
     const today = formatDateShort(new Date());
@@ -52,7 +53,14 @@ export function getProductChartLines(sales, products) {
     const names = new Map(products.map(product => [String(product.id), product.name]));
     return sales.flatMap(sale => (sale.items ?? []).map(item => {
         const id = String(item.productId ?? '');
-        return { id, name: names.get(id) || (id ? `Unknown Product (${id})` : 'Unknown Product'), amount: saleLineAmount(item) };
+        const unit = String(item.unit ?? '').trim().toLowerCase();
+        return {
+            id,
+            name: names.get(id) || (id ? `Unknown Product (${id})` : 'Unknown Product'),
+            amount: saleLineAmount(item),
+            quantity: Number(item.qty) || 0,
+            unit: unit === 'pc' ? 'pcs' : unit,
+        };
     }));
 }
 
@@ -64,4 +72,27 @@ export function groupReportAmounts(lines) {
         totals.set(id, entry);
     }
     return [...totals.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+
+export function rankCustomersBySales(sales, customers, limit) {
+    const names = new Map(customers.map(customer => [String(customer.id), customer.name]));
+    const totals = groupReportAmounts(sales.map(sale => {
+        const id = String(sale.customerId ?? '');
+        return { id, name: names.get(id) || (id ? `Unknown Customer (${id})` : 'Unknown Customer'), amount: saleSubtotalCents(sale) };
+    }));
+    return totals.filter(row => row.amount > 0).slice(0, limit)
+        .map(row => ({ ...row, amount: row.amount / 100 }));
+}
+
+export function rankItemsByQuantity(lines, limit) {
+    const byUnit = new Map();
+    for (const line of lines) {
+        if (!byUnit.has(line.unit)) byUnit.set(line.unit, []);
+        byUnit.get(line.unit).push({ id: line.id, name: line.name, amount: line.quantity });
+    }
+    return [...byUnit].sort(([a], [b]) => a.localeCompare(b)).flatMap(([unit, items]) => {
+        const rows = groupReportAmounts(items).filter(row => row.amount > 0).slice(0, limit);
+        return rows.length ? [{ unit, rows }] : [];
+    });
 }

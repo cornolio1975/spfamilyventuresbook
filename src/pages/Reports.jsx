@@ -376,7 +376,7 @@ export default function Reports() {
 
             {/* Content */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                {activeTab === 'product-sales' && <ProductSalesChart products={products} />}
+                {activeTab === 'product-sales' && <ProductSalesChart products={products} customers={customers} />}
                 {showTrends && <SalesTrends mode={activeTab === 'monthly-sales' ? 'monthly' : 'yearly'} />}
                 {activeTab === 'sales' && (
                     <div className="overflow-x-auto">

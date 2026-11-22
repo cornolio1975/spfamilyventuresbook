@@ -1,6 +1,6 @@
 import { formatRinggit } from '../utils/formatRinggit';
 
-export default function ReportSalesBars({ title, rows, emptyMessage, renderLabel }) {
+export default function ReportSalesBars({ title, rows, emptyMessage, renderLabel, formatAmount = formatRinggit }) {
     const min = rows?.reduce((limit, row) => Math.min(limit, row.amount), 0) ?? 0;
     const max = rows?.reduce((limit, row) => Math.max(limit, row.amount), 0) ?? 0;
     const range = max - min || 1;
@@ -17,7 +17,7 @@ export default function ReportSalesBars({ title, rows, emptyMessage, renderLabel
                         <li key={row.id}>
                             <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
                                 <span className="min-w-0 break-words">{renderLabel ? renderLabel(row) : row.name}</span>
-                                <span className="shrink-0 font-semibold tabular-nums">{formatRinggit(row.amount)}</span>
+                                <span className="shrink-0 font-semibold tabular-nums">{formatAmount(row.amount)}</span>
                             </div>
                             <div aria-hidden="true" className="relative h-3 overflow-hidden rounded bg-gray-100">
                                 <div className="absolute inset-y-0 w-px bg-gray-400" style={{ left: `${zero}%` }} />
