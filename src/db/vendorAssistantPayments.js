@@ -32,18 +32,38 @@ export function previewVendorPayment(db, draft) {
     return db.transaction('r', db.vendors, db.vendor_purchases, db.vendor_payments, () => reviewPayment(db, draft));
 }
 
-export function saveVendorPayment(db, preview) {
-    return db.transaction('rw', db.vendors, db.vendor_purchases, db.vendor_payments, async () => {
-        const payment = await reviewPayment(db, preview.draft);
-        if (payment.skipReason || payment.outstandingCents !== preview.outstandingCents) {
-            throw new Error('The balance or payment history changed. Review the payment again.');
-        }
+export function previewVendorPayments(db, drafts) {
+    return db.transaction('r', db.vendors, db.vendor_purchases, db.vendor_payments, () =>
+        Promise.all(drafts.map(async draft => {
+            try {
+                return await reviewPayment(db, draft);
+            } catch (error) {
+                throw new Error(`${draft.vendorName}: ${error.message}`, { cause: error });
+            }
+        }))
+    );
+}
 
-        await db.vendor_payments.add({
-            id: payment.id,
-            vendorId: payment.draft.vendorId,
-            date: payment.draft.date,
-            amount: payment.amountCents / 100
-        });
+export function saveVendorPayments(db, previews) {
+    return db.transaction('rw', db.vendors, db.vendor_purchases, db.vendor_payments, async () => {
+        for (const preview of previews) {
+            if (preview.skipReason) continue;
+            const payment = await reviewPayment(db, preview.draft);
+            if (payment.skipReason || payment.outstandingCents !== preview.outstandingCents) {
+                const name = preview.draft.vendorName;
+                throw new Error(`${name ? `${name}: ` : ''}The balance or payment history changed. Review the payment again.`);
+            }
+
+            await db.vendor_payments.add({
+                id: payment.id,
+                vendorId: payment.draft.vendorId,
+                date: payment.draft.date,
+                amount: payment.amountCents / 100
+            });
+        }
     });
+}
+
+export function saveVendorPayment(db, preview) {
+    return saveVendorPayments(db, [preview]);
 }

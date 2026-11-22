@@ -54,20 +54,26 @@ export function parsePaymentBatch(input, customers, codes) {
     });
 }
 
-export function parseVendorPayment(input, vendors) {
+export function parseVendorPayments(input, vendors) {
     const { date, blocks } = parseEntryBlocks(input, 'payment');
-    const entry = blocks[0].map(line => line.text).join(' ');
-    const match = entry.match(/^([a-z]{3}|V-\S+?)\s*[:,]?\s+(bal(?:[\s:]|$).*)$/i);
-    const balance = match?.[2].match(BALANCE_LINE);
-    const remainingCents = Math.round(Number(balance?.[1]) * 100);
-    if (blocks.length !== 1 || !Number.isSafeInteger(remainingCents) || Number(balance[1]) < 0) {
-        throw new Error('Enter one three-letter vendor code and remaining balance after the date, for example FCF Bal 2500.');
-    }
+    const seen = new Set();
+    return blocks.map(block => {
+        const entry = block.map(line => line.text).join(' ');
+        const match = entry.match(/^([a-z]{3}|V-\S+?)\s*[:,]?\s+(bal(?:[\s:]|$).*)$/i);
+        const balance = match?.[2].match(BALANCE_LINE);
+        const remainingCents = Math.round(Number(balance?.[1]) * 100);
+        const line = block[0]?.number ?? 2;
+        if (!Number.isSafeInteger(remainingCents) || Number(balance[1]) < 0) {
+            throw new Error(`Line ${line}: Enter a vendor code and remaining balance, for example DEA Bal 2500.`);
+        }
 
-    const code = match[1].toUpperCase();
-    const vendor = resolveVendorCode(code, vendors);
-    if (!vendor) throw new Error(`Unknown vendor code ${code}.`);
-    return { date, vendorId: vendor.id, vendorName: vendor.name, remainingCents };
+        const code = match[1].toUpperCase();
+        const vendor = resolveVendorCode(code, vendors);
+        if (!vendor) throw new Error(`Line ${line}: Unknown vendor code ${code}.`);
+        if (seen.has(vendor.id)) throw new Error(`Line ${line}: Enter only one balance for ${vendor.name}.`);
+        seen.add(vendor.id);
+        return { date, vendorId: vendor.id, vendorName: vendor.name, remainingCents };
+    });
 }
 
 export function parseBillingBatch(input, customers, products, codes) {
