@@ -23,6 +23,7 @@ export function getProductSaleLines(sales, customers, productId) {
         String(item.productId) === productId ? [{
             key: `${sale.id}-${index}`,
             date: sale.date,
+            customerId: String(sale.customerId ?? ''),
             customer: customerNames.get(String(sale.customerId)) || 'Unknown Customer',
             qty: item.qty,
             unit: item.unit,
@@ -30,4 +31,37 @@ export function getProductSaleLines(sales, customers, productId) {
             amount: saleLineAmount(item),
         }] : []
     ));
+}
+
+export function getProductChartDateRange(period, value) {
+    if (period === 'yearly' && /^\d{4}$/.test(value) && value !== '0000') {
+        return { start: `${value}-01-01`, end: `${value}-12-31` };
+    }
+    if (period === 'monthly' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value)) {
+        const endOfMonth = new Date(`${value}-01T00:00:00Z`);
+        endOfMonth.setUTCMonth(endOfMonth.getUTCMonth() + 1, 0);
+        return { start: `${value}-01`, end: endOfMonth.toISOString().slice(0, 10) };
+    }
+    if (period === 'daily' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return { start: value, end: value };
+    }
+    return { start: '', end: '' };
+}
+
+export function getProductChartLines(sales, products) {
+    const names = new Map(products.map(product => [String(product.id), product.name]));
+    return sales.flatMap(sale => (sale.items ?? []).map(item => {
+        const id = String(item.productId ?? '');
+        return { id, name: names.get(id) || (id ? `Unknown Product (${id})` : 'Unknown Product'), amount: saleLineAmount(item) };
+    }));
+}
+
+export function groupReportAmounts(lines) {
+    const totals = new Map();
+    for (const { id, name, amount } of lines) {
+        const entry = totals.get(id) ?? { id, name, amount: 0 };
+        entry.amount += amount;
+        totals.set(id, entry);
+    }
+    return [...totals.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
 }

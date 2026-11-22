@@ -1,8 +1,9 @@
+import ReportSalesBars from '../components/ReportSalesBars';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft } from 'lucide-react';
 import { db } from '../db/db';
-import { getProductSaleLines, getReportDateRange, getReportSales } from '../utils/reportSales';
+import { getProductSaleLines, getReportDateRange, getReportSales, groupReportAmounts } from '../utils/reportSales';
 
 const money = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR' });
 
@@ -10,13 +11,18 @@ export default function ProductSalesReport() {
     const { productId } = useParams();
     const [searchParams] = useSearchParams();
     const dateRange = getReportDateRange(searchParams);
-    const reportSearch = new URLSearchParams({ tab: 'products', ...dateRange }).toString();
+    const reportSearch = new URLSearchParams(searchParams);
+    if (!reportSearch.has('tab')) reportSearch.set('tab', 'products');
     const products = useLiveQuery(() => db.products.toArray());
     const customers = useLiveQuery(() => db.customers.toArray());
     const sales = useLiveQuery(() => getReportSales(db.sales, dateRange), [dateRange.start, dateRange.end]);
 
     const product = products?.find(item => String(item.id) === productId);
     const lines = sales && customers && getProductSaleLines(sales, customers, productId);
+
+    const customerTotals = lines && groupReportAmounts(lines.map(line => ({
+        id: line.customerId, name: line.customer, amount: line.amount
+    })));
 
     return (
         <div className="mx-auto max-w-6xl p-4 pb-24">
@@ -26,6 +32,11 @@ export default function ProductSalesReport() {
             <h1 className="text-2xl font-bold text-gray-800">Sales by Item</h1>
             <h2 className="mt-1 text-lg font-semibold text-gray-700">{product?.name || (products && 'Unknown Product')}</h2>
             <p className="mb-5 text-sm text-gray-600">{dateRange.start} to {dateRange.end}</p>
+
+            <div className="mb-5">
+                <ReportSalesBars title="Sales by Customer" rows={customerTotals}
+                    emptyMessage="No customer sales for this product in the selected period." />
+            </div>
 
             <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
                 {lines?.length ? (
