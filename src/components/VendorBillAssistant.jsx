@@ -48,7 +48,7 @@ export default function VendorBillAssistant({ vendors }) {
             <form onSubmit={submit} className="mt-4 space-y-3">
                 <label htmlFor="vendor-payment" className="block text-sm font-medium">Vendor payment shorthand</label>
                 <p id="vendor-payment-format" className="text-sm text-gray-600">
-                    Enter the date, vendor code and balance still owed after payment. Find your vendor code under Vendor Codes on the dashboard.
+                    Enter the date, three-letter vendor code and balance still owed after payment. Find your vendor code under Vendor Codes on the dashboard.
                 </p>
                 <textarea
                     id="vendor-payment"
@@ -56,7 +56,7 @@ export default function VendorBillAssistant({ vendors }) {
                     rows={3}
                     value={input}
                     disabled={busy}
-                    placeholder={'23/11/2026\nV-001\nBal 2500'}
+                    placeholder={'23/11/2026\nFCF\nBal 2500'}
                     className="w-full rounded-md border border-gray-300 p-3 font-mono text-sm"
                     onChange={event => {
                         setInput(event.target.value);

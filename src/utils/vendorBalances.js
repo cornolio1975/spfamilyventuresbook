@@ -1,7 +1,5 @@
 const toCents = amount => Math.round((Number(amount) || 0) * 100);
 
-export const formatVendorCode = id => `V-${String(id).padStart(3, '0')}`;
-
 export function vendorBalancesCents(bills, payments, throughDate) {
     const balances = new Map();
     const sortedBills = [...bills].sort((a, b) =>
