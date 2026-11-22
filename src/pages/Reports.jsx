@@ -1,3 +1,4 @@
+import ProductSalesChart from '../components/ProductSalesChart';
 import SalesTrends from '../components/SalesTrends';
 import { customerOutstandingCents } from '../utils/customerOutstanding';
 import React, { useState, useMemo, useRef } from 'react';
@@ -19,6 +20,7 @@ export default function Reports() {
     const dateRange = getReportDateRange(searchParams);
     const activeTab = searchParams.get('tab') || 'sales';
     const showTrends = activeTab === 'monthly-sales' || activeTab === 'yearly-sales';
+    const showChart = showTrends || activeTab === 'product-sales';
     const setActiveTab = (tab) => updateReportFilter('tab', tab);
     const updateReportFilter = (key, value) => {
         const next = new URLSearchParams(searchParams);
@@ -209,7 +211,7 @@ export default function Reports() {
     };
 
 
-    if (!stats && !showTrends) return <div className="p-8 text-center">Loading reports...</div>;
+    if (!stats && !showChart) return <div className="p-8 text-center">Loading reports...</div>;
 
     return (
         <div className="p-4 max-w-6xl mx-auto pb-24">
@@ -218,7 +220,7 @@ export default function Reports() {
             </h1>
 
             {/* Controls */}
-            {!showTrends && <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col gap-4">
+            {!showChart && <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col gap-4">
                 <div className="flex flex-col md:flex-row gap-4 items-end md:items-center justify-between">
                     <div className="flex gap-4 w-full md:w-auto">
                         <div>
@@ -333,7 +335,7 @@ export default function Reports() {
                 >
                     <DollarSign size={16} /> Sales
                 </button>
-                {[['monthly-sales', 'Monthly Sales'], ['yearly-sales', 'Yearly Sales']].map(([tab, label]) => (
+                {[['monthly-sales', 'Monthly Sales'], ['yearly-sales', 'Yearly Sales'], ['product-sales', 'Sales by Product']].map(([tab, label]) => (
                     <button key={tab} onClick={() => setActiveTab(tab)}
                         aria-pressed={activeTab === tab}
                         className={`flex items-center gap-2 whitespace-nowrap px-4 py-2 text-sm font-medium ${activeTab === tab ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -374,6 +376,7 @@ export default function Reports() {
 
             {/* Content */}
             <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+                {activeTab === 'product-sales' && <ProductSalesChart products={products} customers={customers} />}
                 {showTrends && <SalesTrends mode={activeTab === 'monthly-sales' ? 'monthly' : 'yearly'} />}
                 {activeTab === 'sales' && (
                     <div className="overflow-x-auto">
@@ -441,6 +444,10 @@ export default function Reports() {
 
                 {activeTab === 'products' && (
                     <div className="overflow-x-auto">
+                        <div className="border-b px-3 py-3">
+                            <button type="button" onClick={() => setActiveTab('product-sales')}
+                                className="font-medium text-blue-700 underline underline-offset-2">View Sales by Product chart</button>
+                        </div>
                         <table className="w-full text-sm text-left">
                             <thead className="bg-gray-50 text-gray-600 font-bold border-b">
                                 <tr>
