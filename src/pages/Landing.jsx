@@ -357,7 +357,7 @@ export default function Landing() {
                             <Sparkles size={32} className="text-teal-700" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-800">Billing Assistant</h3>
-                        <p className="text-sm text-gray-500 mt-2">Create an invoice from shorthand</p>
+                        <p className="text-sm text-gray-500 mt-2">Create an invoice or record a payment</p>
                     </button>
 
                     <button

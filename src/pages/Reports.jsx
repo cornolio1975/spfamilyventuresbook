@@ -1,3 +1,4 @@
+import { customerOutstandingCents } from '../utils/customerOutstanding';
 import React, { useState, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getReportDateRange, getReportSales, saleLineAmount } from '../utils/reportSales';
@@ -30,6 +31,11 @@ export default function Reports() {
 
     // Fetch data
     const sales = useLiveQuery(() => getReportSales(db.sales, dateRange), [dateRange.start, dateRange.end]);
+
+    const collections = useLiveQuery(async () => {
+        const entries = await db.payments.where('date').between(dateRange.start, dateRange.end, true, true).toArray();
+        return entries.reduce((total, payment) => total + (Number(payment.amount) || 0), 0);
+    }, [dateRange.start, dateRange.end]);
 
     const products = useLiveQuery(() => db.products.toArray());
     const customers = useLiveQuery(() => db.customers.toArray());
@@ -146,23 +152,7 @@ export default function Reports() {
 
         const { sales: allSales, payments: allPayments } = customerRecords;
 
-        // Sort by date to find the very first sale (to get initial previous balance)
-        const sortedSales = [...allSales].sort((a, b) => new Date(a.date) - new Date(b.date));
-        const firstSale = sortedSales[0];
-        const initialBalance = firstSale ? (parseFloat(firstSale.prevBalance) || 0) : 0;
-
-        const totalSalesBody = allSales.reduce((sum, s) => {
-            // Use subtotal if available, otherwise derive it
-            let saleAmount = parseFloat(s.subtotal);
-            if (isNaN(saleAmount)) {
-                saleAmount = (parseFloat(s.grandTotal) || 0) - (parseFloat(s.prevBalance) || 0);
-            }
-            return sum + saleAmount;
-        }, 0);
-
-        const totalPayments = allPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-
-        return (totalSalesBody + initialBalance) - totalPayments;
+        return customerOutstandingCents(allSales, allPayments) / 100;
     }, [customerRecords]);
 
     // Filter History for Display based on Date Range
@@ -320,6 +310,10 @@ export default function Reports() {
                         <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 min-w-[120px]">
                             <p className="text-xs text-blue-600 font-bold uppercase">Paid</p>
                             <p className="text-lg font-bold text-blue-900">RM {stats.summary.paid.toFixed(2)}</p>
+                        </div>
+                        <div className="bg-teal-50 p-3 rounded-lg border border-teal-100 min-w-[140px]">
+                            <p className="text-xs text-teal-700 font-bold uppercase">Payments Received</p>
+                            <p className="text-lg font-bold text-teal-900">{collections === undefined ? '—' : `RM ${collections.toFixed(2)}`}</p>
                         </div>
                         <div className="bg-red-50 p-3 rounded-lg border border-red-100 min-w-[120px]">
                             <p className="text-xs text-red-600 font-bold uppercase">Balance</p>

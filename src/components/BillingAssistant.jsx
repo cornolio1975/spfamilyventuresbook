@@ -1,21 +1,48 @@
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import billingCodes from '../data/billingCodes.json';
-import { parseBillingBatch } from '../utils/parseBillingDraft';
+import { parseBillingBatch, parsePaymentDraft } from '../utils/parseBillingDraft';
+import { db } from '../db/db';
+import { previewAssistantPayment, saveAssistantPayment } from '../db/assistantPayments';
+
+const formatCents = (cents) => `RM ${(cents / 100).toFixed(2)}`;
 
 export default function BillingAssistant({ customers, products, open, hasItems, isSaving, onApply, onSaveBatch }) {
     const [input, setInput] = useState('');
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
+    const [payment, setPayment] = useState(null);
+    const [paymentBusy, setPaymentBusy] = useState(false);
+    const busy = isSaving || paymentBusy;
     const ready = Boolean(customers && products);
     const isBatch = input.split(/\r?\n/).some(line => /^[-–—]{2,}$/.test(line.trim()));
 
     const prepareBills = async (event) => {
         event.preventDefault();
-        if (!ready || isSaving) return;
+        if (!ready || busy) return;
         setError('');
         setMessage('');
+        setPaymentBusy(true);
         try {
+            if (payment) {
+                await saveAssistantPayment(db, payment.draft, payment.outstandingCents);
+                setMessage(`Payment of ${formatCents(payment.amountCents)} recorded for ${payment.draft.customerName}.`);
+                setInput('');
+                setPayment(null);
+                return;
+            }
+
+            const paymentDraft = parsePaymentDraft(input, customers, billingCodes);
+            if (paymentDraft) {
+                const preview = await previewAssistantPayment(db, paymentDraft);
+                if (preview.amountCents === 0) {
+                    setMessage('The balance is unchanged. No payment was recorded.');
+                    return;
+                }
+                setPayment({ ...preview, draft: paymentDraft });
+                return;
+            }
+
             const drafts = parseBillingBatch(input, customers, products, billingCodes);
             if (drafts.length === 1) {
                 onApply(drafts[0]);
@@ -32,7 +59,10 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
             setInput('');
             setMessage(skipped ? `${savedMessage} ${skippedMessage}` : savedMessage);
         } catch (draftError) {
+            setPayment(null);
             setError(draftError.message);
+        } finally {
+            setPaymentBusy(false);
         }
     };
 
@@ -44,19 +74,20 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
             </summary>
             <form onSubmit={prepareBills} className="mt-4 space-y-3">
                 <label htmlFor="billing-shorthand" className="block text-sm font-medium text-gray-700">
-                    Bill shorthand
+                    Bill or payment shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date once on the first line. For each bill, enter the customer code, items and optional Bal. Put --- between bills. All bills use the first date. Items worth RM 0.00 are skipped.
+                    Enter the date once on the first line. For each bill, enter the customer code, items and optional Bal. Put --- between bills. All bills use the first date. Items worth RM 0.00 are skipped. For a payment, enter the date followed by the customer code and remaining balance, for example HPL Bal 2500.
                 </p>
                 <textarea
                     id="billing-shorthand"
                     aria-describedby="billing-format"
                     rows={9}
-                    disabled={isSaving}
+                    disabled={busy}
                     value={input}
                     onChange={(event) => {
                         setInput(event.target.value);
+                        setPayment(null);
                         setError('');
                         setMessage('');
                     }}
@@ -65,12 +96,25 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                 />
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
                 {message && <p role="status" className="text-sm text-green-700">{message}</p>}
+                {payment && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm" role="status">
+                        <p className="font-medium">{payment.draft.customerName} · {payment.draft.date.split('-').reverse().join('/')}</p>
+                        <dl className="mt-2 grid grid-cols-2 gap-1">
+                            <dt>Outstanding on that date</dt>
+                            <dd>{formatCents(payment.outstandingCents)}</dd>
+                            <dt>Payment received</dt>
+                            <dd className="font-bold">{formatCents(payment.amountCents)}</dd>
+                            <dt>Remaining on that date</dt>
+                            <dd>{formatCents(payment.draft.remainingCents)}</dd>
+                        </dl>
+                    </div>
+                )}
                 <button
                     type="submit"
-                    disabled={!ready || isSaving || !input.trim()}
+                    disabled={!ready || busy || !input.trim()}
                     className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
                 >
-                    {isBatch ? 'Save all bills' : hasItems ? 'Replace invoice draft' : 'Prepare invoice'}
+                    {payment ? 'Confirm payment' : isBatch ? 'Save all bills' : hasItems ? 'Review entry' : 'Prepare entry'}
                 </button>
                 {!ready && <p role="status" className="text-sm text-gray-600">Loading customers and products…</p>}
             </form>

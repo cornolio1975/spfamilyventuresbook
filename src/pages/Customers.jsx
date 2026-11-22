@@ -1,3 +1,4 @@
+import { customerOutstandingCents } from '../utils/customerOutstanding';
 import React, { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
@@ -186,29 +187,7 @@ export default function Customers() {
         const customerSales = sales.filter(s => String(s.customerId) === String(customerId));
         const customerPayments = payments.filter(p => String(p.customerId) === String(customerId));
 
-        // Sort by date then ID to find the very first invoice
-        const sortedSales = [...customerSales].sort((a, b) => {
-            const dateA = new Date(a.date);
-            const dateB = new Date(b.date);
-            if (dateA - dateB !== 0) return dateA - dateB;
-            return a.id - b.id;
-        });
-
-        const firstSale = sortedSales[0];
-        const initialBalance = firstSale ? (parseFloat(firstSale.prevBalance) || 0) : 0;
-
-        const totalSales = customerSales.reduce((sum, s) => {
-            // Defensive: if subtotal missing, derive from grandTotal - prevBalance
-            let saleAmount = s.subtotal;
-            if (saleAmount === undefined || saleAmount === null) {
-                saleAmount = (parseFloat(s.grandTotal) || 0) - (parseFloat(s.prevBalance) || 0);
-            }
-            return sum + (parseFloat(saleAmount) || 0);
-        }, 0);
-
-        const totalPayments = customerPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-
-        return (totalSales + initialBalance) - totalPayments;
+        return customerOutstandingCents(customerSales, customerPayments) / 100;
     };
 
     const filteredCustomers = customers?.filter(c =>

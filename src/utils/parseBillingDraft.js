@@ -15,6 +15,27 @@ function lookupRecord(code, aliases, records, type) {
     return record;
 }
 
+export function parsePaymentDraft(input, customers, codes) {
+    const [dateLine, ...lines] = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    if (lines.length !== 1 && !(lines.length === 2 && CUSTOMER_LINE.test(lines[0]))) return null;
+    const entry = lines.join(' ');
+    const match = entry.match(/^([a-z]{3})\s+(bal(?:\s|:).*)$/i);
+    if (!match) return null;
+
+    const dateMatch = dateLine.match(DATE_LINE);
+    if (!dateMatch) throw new Error('Start with the payment date, for example Date 22/11/2026.');
+
+    const balanceMatch = match[2].match(BALANCE_LINE);
+    const balance = balanceMatch ? Number(balanceMatch[1]) : NaN;
+    const remainingCents = Math.round(balance * 100);
+    if (!Number.isSafeInteger(remainingCents) || balance < 0) {
+        throw new Error('Enter a valid remaining balance of RM 0.00 or more.');
+    }
+
+    const customer = lookupRecord(match[1].toUpperCase(), codes.customers, customers, 'Customer');
+    return { date: parseBillDate(dateMatch, 1, 'payment'), customerId: customer.id, customerName: customer.name, remainingCents };
+}
+
 export function parseBillingBatch(input, customers, products, codes) {
     const lines = input.split(/\r?\n/).map((line, index) => ({
         text: line.trim(),
@@ -46,14 +67,14 @@ export function parseBillingBatch(input, customers, products, codes) {
     return blocks.map(block => parseBill(block, date, customers, products, codes));
 }
 
-function parseBillDate(dateMatch, lineNumber) {
+function parseBillDate(dateMatch, lineNumber, type = 'bill') {
     const [, day, month, rawYear] = dateMatch;
     const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
     const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     const checkedDate = new Date(`${date}T00:00:00Z`);
     if (Number(year) === 0 || !Number.isFinite(checkedDate.getTime()) ||
         checkedDate.toISOString().slice(0, 10) !== date) {
-        throw new Error(`Line ${lineNumber}: Enter a valid bill date.`);
+        throw new Error(`Line ${lineNumber}: Enter a valid ${type} date.`);
     }
     return date;
 }
