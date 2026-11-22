@@ -1,3 +1,4 @@
+import { formatRinggit } from '../utils/formatRinggit';
 import React, { useEffect, useState } from 'react';
 import { vendorBalancesCents } from '../utils/vendorBalances';
 import { formatDate, formatDateShort } from '../utils/dateUtils';
@@ -203,7 +204,7 @@ export default function Landing() {
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Today's Sales</span>
                             </div>
-                            <p className="text-2xl font-bold">RM {stats.todaySales.toFixed(2)}</p>
+                            <p className="text-2xl font-bold">{formatRinggit(stats.todaySales)}</p>
                         </div>
 
                         {/* Box 2: Today's Collections */}
@@ -214,7 +215,7 @@ export default function Landing() {
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Today's Collections</span>
                             </div>
-                            <p className="text-2xl font-bold text-white">RM {stats.todayCollections.toFixed(2)}</p>
+                            <p className="text-2xl font-bold text-white">{formatRinggit(stats.todayCollections)}</p>
                         </div>
 
                         {/* Box 3: Daily Net Profit */}
@@ -226,7 +227,7 @@ export default function Landing() {
                                 <span className="text-blue-100 text-sm font-medium">Daily Net Profit</span>
                             </div>
                             <p className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
-                                RM {stats.netProfit.toFixed(2)}
+                                {formatRinggit(stats.netProfit)}
                             </p>
                         </div>
                         
@@ -239,7 +240,7 @@ export default function Landing() {
                                 <span className="text-blue-100 text-sm font-medium">Total Outstanding</span>
                             </div>
                             <p className={`text-2xl font-bold ${stats.totalOutstanding > 0 ? 'text-red-300' : 'text-white'}`}>
-                                RM {stats.totalOutstanding.toFixed(2)}
+                                {formatRinggit(stats.totalOutstanding)}
                             </p>
                         </div>
 
@@ -251,7 +252,7 @@ export default function Landing() {
                                 <span className="text-sm font-medium text-blue-100">Total Bills Outstanding</span>
                             </div>
                             <p className="text-2xl font-bold text-amber-200">
-                                {totalBillsOutstanding === null ? 'Loading…' : `RM ${totalBillsOutstanding.toFixed(2)}`}
+                                {totalBillsOutstanding === null ? 'Loading…' : formatRinggit(totalBillsOutstanding)}
                             </p>
                         </Link>
 
@@ -263,7 +264,7 @@ export default function Landing() {
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Monthly Sales</span>
                             </div>
-                            <p className="text-2xl font-bold">RM {stats.monthlySales.toFixed(2)}</p>
+                            <p className="text-2xl font-bold">{formatRinggit(stats.monthlySales)}</p>
                         </div>
                         
                         {/* Box 6: Monthly Net Profit */}
@@ -275,7 +276,7 @@ export default function Landing() {
                                 <span className="text-blue-100 text-sm font-medium">Monthly Net Profit</span>
                             </div>
                             <p className={`text-2xl font-bold ${stats.monthlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
-                                RM {stats.monthlyNetProfit.toFixed(2)}
+                                {formatRinggit(stats.monthlyNetProfit)}
                             </p>
                         </div>
 
@@ -287,7 +288,7 @@ export default function Landing() {
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Total Revenue</span>
                             </div>
-                            <p className="text-2xl font-bold">RM {stats.totalRevenue.toFixed(2)}</p>
+                            <p className="text-2xl font-bold">{formatRinggit(stats.totalRevenue)}</p>
                         </div>
 
                         {/* Box 8: Yearly Net Profit */}
@@ -299,7 +300,7 @@ export default function Landing() {
                                 <span className="text-blue-100 text-sm font-medium">Yearly Net Profit</span>
                             </div>
                             <p className={`text-2xl font-bold ${stats.yearlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
-                                RM {stats.yearlyNetProfit.toFixed(2)}
+                                {formatRinggit(stats.yearlyNetProfit)}
                             </p>
                         </div>
 
@@ -311,7 +312,7 @@ export default function Landing() {
                                 </div>
                                 <span className="text-blue-100 text-sm font-medium">Today's Bills</span>
                             </div>
-                            <p className="text-2xl font-bold text-orange-200">RM {stats.todayBills.toFixed(2)}</p>
+                            <p className="text-2xl font-bold text-orange-200">{formatRinggit(stats.todayBills)}</p>
                         </div>
 
                         {/* Box 10: Today's Invoices (count) */}
@@ -428,7 +429,7 @@ export default function Landing() {
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <p className="font-bold text-gray-800">RM {(sale.grandTotal || 0).toFixed(2)}</p>
+                                            <p className="font-bold text-gray-800">{formatRinggit(sale.grandTotal || 0)}</p>
                                             <p className="text-xs text-gray-500">Inv #{sale.id}</p>
                                         </div>
                                     </div>

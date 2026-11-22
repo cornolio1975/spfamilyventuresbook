@@ -1,3 +1,4 @@
+import { formatRinggit } from '../utils/formatRinggit';
 import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
@@ -163,7 +164,7 @@ export default function Vendors() {
             <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-medium text-blue-800">Total Vendor Outstanding</p>
                 <p className="text-2xl font-bold text-blue-950">
-                    {balances ? `RM ${(totalOutstanding / 100).toFixed(2)}` : 'Loading…'}
+                    {balances ? formatRinggit(totalOutstanding / 100) : 'Loading…'}
                 </p>
             </div>
             {notice && <p role="status" className="mb-4 text-sm text-green-700">{notice}</p>}
@@ -228,7 +229,7 @@ export default function Vendors() {
                         <dl className="mt-3 flex justify-between gap-2 border-t pt-3 text-sm">
                             <dt>Outstanding</dt>
                             <dd className="font-bold text-gray-900">
-                                {balances ? `RM ${((balances.get(String(vendor.id)) ?? 0) / 100).toFixed(2)}` : 'Loading…'}
+                                {balances ? formatRinggit((balances.get(String(vendor.id)) ?? 0) / 100) : 'Loading…'}
                             </dd>
                         </dl>
                         <div className="mt-3 flex flex-wrap gap-2">
