@@ -1,10 +1,20 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
+import VendorPaymentDialog from '../components/VendorPaymentDialog';
+import { formatDateShort } from '../utils/dateUtils';
+import { vendorBalancesCents } from '../utils/vendorBalances';
 import { Plus, Edit, Trash2, Upload, Download, Search, Phone, Mail, MapPin } from 'lucide-react';
 
 export default function Vendors() {
     const vendors = useLiveQuery(() => db.vendors.toArray());
+    const ledger = useLiveQuery(() => db.transaction('r', db.vendor_purchases, db.vendor_payments, async () => ({
+        bills: await db.vendor_purchases.toArray(),
+        payments: await db.vendor_payments.toArray()
+    })));
+    const [paymentDialog, setPaymentDialog] = useState(null);
+    const [notice, setNotice] = useState('');
+    const [actionError, setActionError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,8 +60,22 @@ export default function Vendors() {
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this vendor?')) {
-            await db.vendors.delete(id);
+        if (!window.confirm('Delete this vendor profile?')) return;
+        setNotice('');
+        setActionError('');
+        try {
+            await db.transaction('rw', db.vendors, db.vendor_purchases, db.vendor_payments, async () => {
+                const linked = record => String(record.vendorId) === String(id);
+                const [bill, payment] = await Promise.all([
+                    db.vendor_purchases.filter(linked).first(),
+                    db.vendor_payments.filter(linked).first()
+                ]);
+                if (bill || payment) throw new Error('This vendor has linked bills or payments. Its profile is needed for those records.');
+                await db.vendors.delete(id);
+            });
+            setNotice('Vendor deleted.');
+        } catch (error) {
+            setActionError(error.message);
         }
     };
 
@@ -92,8 +116,16 @@ export default function Vendors() {
 
     const filteredVendors = vendors?.filter(v =>
         v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        v.contact.includes(searchTerm)
+        String(v.contact ?? '').includes(searchTerm)
     ) || [];
+    const balances = ledger && vendorBalancesCents(ledger.bills, ledger.payments, formatDateShort(new Date()));
+    const totalOutstanding = balances && [...balances.values()].reduce((sum, cents) => sum + Math.max(0, cents), 0);
+    const dialogVendor = vendors?.find(vendor => vendor.id === paymentDialog?.vendorId);
+    const openPaymentDialog = (vendorId, mode) => {
+        setNotice('');
+        setActionError('');
+        setPaymentDialog({ vendorId, mode });
+    };
 
     return (
         <div className="p-4 pb-24 max-w-5xl mx-auto">
@@ -128,6 +160,15 @@ export default function Vendors() {
                 </div>
             </div>
 
+            <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                <p className="text-sm font-medium text-blue-800">Total Vendor Outstanding</p>
+                <p className="text-2xl font-bold text-blue-950">
+                    {balances ? `RM ${(totalOutstanding / 100).toFixed(2)}` : 'Loading…'}
+                </p>
+            </div>
+            {notice && <p role="status" className="mb-4 text-sm text-green-700">{notice}</p>}
+            {actionError && <p role="alert" className="mb-4 text-sm text-red-700">{actionError}</p>}
+
             {/* Search */}
             <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -149,12 +190,16 @@ export default function Vendors() {
                             <div className="flex gap-1">
                                 <button
                                     onClick={() => handleOpenModal(vendor)}
+                                    aria-label={`Edit profile for ${vendor.name}`}
+                                    title="Edit profile"
                                     className="text-blue-600 hover:text-blue-800 p-1"
                                 >
                                     <Edit size={16} />
                                 </button>
                                 <button
                                     onClick={() => handleDelete(vendor.id)}
+                                    aria-label={`Delete ${vendor.name}`}
+                                    title="Delete vendor"
                                     className="text-red-600 hover:text-red-800 p-1"
                                 >
                                     <Trash2 size={16} />
@@ -180,6 +225,22 @@ export default function Vendors() {
                                 </div>
                             )}
                         </div>
+                        <dl className="mt-3 flex justify-between gap-2 border-t pt-3 text-sm">
+                            <dt>Outstanding</dt>
+                            <dd className="font-bold text-gray-900">
+                                {balances ? `RM ${((balances.get(String(vendor.id)) ?? 0) / 100).toFixed(2)}` : 'Loading…'}
+                            </dd>
+                        </dl>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" disabled={!ledger} onClick={() => openPaymentDialog(vendor.id, 'payment')}
+                                className="rounded-lg bg-blue-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50">
+                                Record Payment
+                            </button>
+                            <button type="button" disabled={!ledger} onClick={() => openPaymentDialog(vendor.id, 'history')}
+                                className="rounded-lg border border-blue-200 px-3 py-2 text-sm font-medium text-blue-800 disabled:opacity-50">
+                                Payment History
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -188,6 +249,19 @@ export default function Vendors() {
                 <div className="text-center py-12 text-gray-500">
                     No vendors found. Add one to get started.
                 </div>
+            )}
+
+            {dialogVendor && ledger && (
+                <VendorPaymentDialog
+                    vendor={dialogVendor}
+                    mode={paymentDialog.mode}
+                    bills={ledger.bills.filter(bill => String(bill.vendorId) === String(dialogVendor.id))}
+                    payments={ledger.payments.filter(payment => String(payment.vendorId) === String(dialogVendor.id))}
+                    onClose={(message = '') => {
+                        setPaymentDialog(null);
+                        setNotice(message);
+                    }}
+                />
             )}
 
             {/* Modal */}

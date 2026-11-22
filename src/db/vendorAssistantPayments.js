@@ -5,21 +5,25 @@ async function reviewPayment(db, draft) {
     if (draft.date > formatDateShort(new Date())) {
         throw new Error('The payment date cannot be in the future.');
     }
-    const { vendorId, date, remainingCents } = draft;
-    const id = `vendor-payment:${vendorId}:${date}:${remainingCents}`;
+    const { vendorId, date } = draft;
     const sameVendor = record => String(record.vendorId) === String(vendorId);
-    const [vendor, duplicate, bills, payments] = await Promise.all([
+    const [vendor, bills, payments] = await Promise.all([
         db.vendors.get(vendorId),
-        db.vendor_payments.get(id),
         db.vendor_purchases.filter(sameVendor).toArray(),
         db.vendor_payments.filter(sameVendor).toArray()
     ]);
     if (!vendor) throw new Error('This vendor is no longer in the vendor list.');
-    if (duplicate) return { draft, skipReason: 'This payment is already recorded.' };
 
     const outstandingCents = vendorBalancesCents(bills, payments, date).get(String(vendorId)) ?? 0;
+    const remainingCents = draft.remainingCents ?? outstandingCents - draft.amountCents;
+    const id = `vendor-payment:${vendorId}:${date}:${remainingCents}`;
+
     const amountCents = outstandingCents - remainingCents;
     if (!Number.isSafeInteger(amountCents)) throw new Error('The recorded balance is invalid.');
+    if (draft.amountCents !== undefined && (amountCents <= 0 || remainingCents < 0)) {
+        throw new Error('Enter a payment greater than zero and within the outstanding balance for that date.');
+    }
+    if (payments.some(payment => payment.id === id)) return { draft, skipReason: 'This payment is already recorded.' };
     if (amountCents < 0) throw new Error('The remaining balance is above the recorded outstanding balance for that date.');
     return { draft, id, outstandingCents, amountCents, skipReason: amountCents === 0 ? 'Balance unchanged.' : null };
 }
