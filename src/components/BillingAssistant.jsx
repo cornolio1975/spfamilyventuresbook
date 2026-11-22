@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import billingCodes from '../data/billingCodes.json';
-import { parseBillingBatch, parsePaymentDraft } from '../utils/parseBillingDraft';
+import { detectBillingEntry, parseBillingBatch, parsePaymentBatch } from '../utils/parseBillingDraft';
 import { db } from '../db/db';
-import { previewAssistantPayment, saveAssistantPayment } from '../db/assistantPayments';
+import { previewAssistantPayments, saveAssistantPayments } from '../db/assistantPayments';
 
 const formatCents = (cents) => `RM ${(cents / 100).toFixed(2)}`;
 
@@ -11,11 +11,13 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
     const [input, setInput] = useState('');
     const [error, setError] = useState('');
     const [message, setMessage] = useState('');
-    const [payment, setPayment] = useState(null);
+    const [paymentPreviews, setPaymentPreviews] = useState(null);
     const [paymentBusy, setPaymentBusy] = useState(false);
     const busy = isSaving || paymentBusy;
     const ready = Boolean(customers && products);
-    const isBatch = input.split(/\r?\n/).some(line => /^[-–—]{2,}$/.test(line.trim()));
+    const { isBatch, isPayment } = detectBillingEntry(input);
+    const payable = paymentPreviews?.filter(payment => !payment.skipReason) ?? [];
+    const totalCents = payable.reduce((sum, payment) => sum + payment.amountCents, 0);
 
     const prepareBills = async (event) => {
         event.preventDefault();
@@ -24,22 +26,22 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
         setMessage('');
         setPaymentBusy(true);
         try {
-            if (payment) {
-                await saveAssistantPayment(db, payment.draft, payment.outstandingCents);
-                setMessage(`Payment of ${formatCents(payment.amountCents)} recorded for ${payment.draft.customerName}.`);
+            if (paymentPreviews) {
+                if (!payable.length) return;
+
+                await saveAssistantPayments(db, paymentPreviews);
+                const count = payable.length;
+                const skipped = paymentPreviews.length - count;
+                const savedMessage = `${count} ${count === 1 ? 'payment' : 'payments'} recorded for ${formatCents(totalCents)}.`;
+                setMessage(skipped ? `${savedMessage} ${skipped} skipped.` : savedMessage);
                 setInput('');
-                setPayment(null);
+                setPaymentPreviews(null);
                 return;
             }
 
-            const paymentDraft = parsePaymentDraft(input, customers, billingCodes);
-            if (paymentDraft) {
-                const preview = await previewAssistantPayment(db, paymentDraft);
-                if (preview.amountCents === 0) {
-                    setMessage('The balance is unchanged. No payment was recorded.');
-                    return;
-                }
-                setPayment({ ...preview, draft: paymentDraft });
+            if (isPayment) {
+                const drafts = parsePaymentBatch(input, customers, billingCodes);
+                setPaymentPreviews(await previewAssistantPayments(db, drafts));
                 return;
             }
 
@@ -59,7 +61,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
             setInput('');
             setMessage(skipped ? `${savedMessage} ${skippedMessage}` : savedMessage);
         } catch (draftError) {
-            setPayment(null);
+            setPaymentPreviews(null);
             setError(draftError.message);
         } finally {
             setPaymentBusy(false);
@@ -77,7 +79,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     Bill or payment shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date once on the first line. For each bill, enter the customer code, items and optional Bal. Put --- between bills. All bills use the first date. Items worth RM 0.00 are skipped. For a payment, enter the date followed by the customer code and remaining balance, for example HPL Bal 2500.
+                    Enter the date once on the first line. For payments, enter each customer code and remaining balance, for example HPL Bal 2500. For bills, enter the customer code, items and optional Bal. Put --- between customers and submit bills and payments separately.
                 </p>
                 <textarea
                     id="billing-shorthand"
@@ -87,7 +89,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     value={input}
                     onChange={(event) => {
                         setInput(event.target.value);
-                        setPayment(null);
+                        setPaymentPreviews(null);
                         setError('');
                         setMessage('');
                     }}
@@ -96,26 +98,36 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                 />
                 {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
                 {message && <p role="status" className="text-sm text-green-700">{message}</p>}
-                {payment && (
-                    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm" role="status">
-                        <p className="font-medium">{payment.draft.customerName} · {payment.draft.date.split('-').reverse().join('/')}</p>
-                        <dl className="mt-2 grid grid-cols-2 gap-1">
-                            <dt>Outstanding on that date</dt>
-                            <dd>{formatCents(payment.outstandingCents)}</dd>
-                            <dt>Payment received</dt>
-                            <dd className="font-bold">{formatCents(payment.amountCents)}</dd>
-                            <dt>Remaining on that date</dt>
-                            <dd>{formatCents(payment.draft.remainingCents)}</dd>
-                        </dl>
+                {paymentPreviews && (
+                    <div className="space-y-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm" role="status">
+                        <p className="font-medium">Payments on {paymentPreviews[0].draft.date.split('-').reverse().join('/')}</p>
+                        {paymentPreviews.map(payment => (
+                            <div key={payment.draft.customerId} className="border-t border-blue-200 pt-2">
+                                <p className="font-medium">{payment.draft.customerName}</p>
+                                {payment.skipReason ? (
+                                    <p>{payment.skipReason}</p>
+                                ) : (
+                                    <dl className="mt-1 grid grid-cols-2 gap-1">
+                                        <dt>Outstanding on that date</dt>
+                                        <dd>{formatCents(payment.outstandingCents)}</dd>
+                                        <dt>Payment received</dt>
+                                        <dd className="font-bold">{formatCents(payment.amountCents)}</dd>
+                                        <dt>Remaining on that date</dt>
+                                        <dd>{formatCents(payment.draft.remainingCents)}</dd>
+                                    </dl>
+                                )}
+                            </div>
+                        ))}
+                        <p className="font-bold">{payable.length ? `Total to record ${formatCents(totalCents)}` : 'No new payments to record.'}</p>
                     </div>
                 )}
-                <button
+                {(!paymentPreviews || payable.length > 0) && <button
                     type="submit"
                     disabled={!ready || busy || !input.trim()}
                     className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
                 >
-                    {payment ? 'Confirm payment' : isBatch ? 'Save all bills' : hasItems ? 'Review entry' : 'Prepare entry'}
-                </button>
+                    {paymentPreviews ? (payable.length === 1 ? 'Confirm payment' : 'Confirm payments') : isPayment ? (isBatch ? 'Review payments' : 'Review payment') : isBatch ? 'Save all bills' : hasItems ? 'Review entry' : 'Prepare entry'}
+                </button>}
                 {!ready && <p role="status" className="text-sm text-gray-600">Loading customers and products…</p>}
             </form>
         </details>

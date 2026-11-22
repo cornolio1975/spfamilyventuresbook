@@ -2,7 +2,7 @@ import { resolveBillingRecord } from './resolveBillingRecord.js';
 import { hasBillableAmount } from './billingItemAmount.js';
 
 const DATE_LINE = /^(?:date\s*:?\s*)?(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/i;
-const SEPARATOR_LINE = /^[-–—]{2,}$/;
+const SEPARATOR_LINE = /^[-–—]+$/;
 const CUSTOMER_LINE = /^[a-z]{3}$/i;
 const ITEM_LINE = /^(?:([a-z]{3})\s+)?([a-z]{3})\s+(\d+(?:\.\d+)?)\s*(kg|pcs?)\s+(?:rm\s*)?(\d+(?:\.\d{1,2})?):?$/i;
 const BALANCE_LINE = /^bal(?:\s*:\s*|\s+)(?:rm\s*)?(-?\d+(?:\.\d{1,2})?)$/i;
@@ -15,28 +15,50 @@ function lookupRecord(code, aliases, records, type) {
     return record;
 }
 
-export function parsePaymentDraft(input, customers, codes) {
-    const [dateLine, ...lines] = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-    if (lines.length !== 1 && !(lines.length === 2 && CUSTOMER_LINE.test(lines[0]))) return null;
-    const entry = lines.join(' ');
-    const match = entry.match(/^([a-z]{3})\s+(bal(?:\s|:).*)$/i);
-    if (!match) return null;
+const PAYMENT_START = /^[a-z]{3}\s+bal(?:[\s:]|$)/i;
 
-    const dateMatch = dateLine.match(DATE_LINE);
-    if (!dateMatch) throw new Error('Start with the payment date, for example Date 22/11/2026.');
-
-    const balanceMatch = match[2].match(BALANCE_LINE);
-    const balance = balanceMatch ? Number(balanceMatch[1]) : NaN;
-    const remainingCents = Math.round(balance * 100);
-    if (!Number.isSafeInteger(remainingCents) || balance < 0) {
-        throw new Error('Enter a valid remaining balance of RM 0.00 or more.');
+export function detectBillingEntry(input) {
+    const [, ...lines] = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    let previous = '';
+    let isBatch = false;
+    let isPayment = false;
+    for (const line of lines) {
+        if (SEPARATOR_LINE.test(line)) isBatch = true;
+        if (PAYMENT_START.test(line) || (CUSTOMER_LINE.test(previous) && PAYMENT_START.test(`${previous} ${line}`))) {
+            isPayment = true;
+        }
+        previous = line;
     }
+    return { isBatch, isPayment };
+}
 
-    const customer = lookupRecord(match[1].toUpperCase(), codes.customers, customers, 'Customer');
-    return { date: parseBillDate(dateMatch, 1, 'payment'), customerId: customer.id, customerName: customer.name, remainingCents };
+export function parsePaymentBatch(input, customers, codes) {
+    const { date, blocks } = parseEntryBlocks(input, 'payment');
+    const customerIds = new Set();
+    return blocks.map(block => {
+        const entry = block.map(line => line.text).join(' ');
+        const match = entry.match(/^([a-z]{3})\s+(bal(?:[\s:]|$).*)$/i);
+        const balanceMatch = match?.[2].match(BALANCE_LINE);
+        const balance = balanceMatch ? Number(balanceMatch[1]) : NaN;
+        const remainingCents = Math.round(balance * 100);
+        if (!Number.isSafeInteger(remainingCents) || balance < 0) {
+            throw new Error(`Line ${block[0]?.number ?? 2}: Enter a customer code and remaining balance for each payment, for example HPL Bal 2500. Submit invoices separately.`);
+        }
+
+        const code = match[1].toUpperCase();
+        const customer = lookupRecord(code, codes.customers, customers, 'Customer');
+        if (customerIds.has(customer.id)) throw new Error(`Customer ${code} appears more than once. Enter one remaining balance per customer.`);
+        customerIds.add(customer.id);
+        return { date, customerId: customer.id, customerName: customer.name, remainingCents };
+    });
 }
 
 export function parseBillingBatch(input, customers, products, codes) {
+    const { date, blocks } = parseEntryBlocks(input, 'bill');
+    return blocks.map(block => parseBill(block, date, customers, products, codes));
+}
+
+function parseEntryBlocks(input, type) {
     const lines = input.split(/\r?\n/).map((line, index) => ({
         text: line.trim(),
         number: index + 1
@@ -45,26 +67,26 @@ export function parseBillingBatch(input, customers, products, codes) {
     const dateMatch = lines[0]?.text.match(DATE_LINE);
     if (!dateMatch) throw new Error('Start with a date such as 21/11/26 or Date 21/11/2026.');
 
-    const date = parseBillDate(dateMatch, lines[0].number);
+    const date = parseBillDate(dateMatch, lines[0].number, type);
 
     const blocks = [[]];
     for (const line of lines.slice(1)) {
         if (DATE_LINE.test(line.text)) {
-            throw new Error(`Line ${line.number}: Remove this date. Every bill uses the date on the first line.`);
+            throw new Error(`Line ${line.number}: Remove this date. Every ${type} uses the date on the first line.`);
         }
 
         if (SEPARATOR_LINE.test(line.text)) {
-            if (!blocks.at(-1).length) throw new Error(`Line ${line.number}: Add a bill before the divider.`);
+            if (!blocks.at(-1).length) throw new Error(`Line ${line.number}: Add a ${type} before the divider.`);
             blocks.push([]);
         } else {
             blocks.at(-1).push(line);
         }
     }
     if (!blocks.at(-1).length && blocks.length > 1) {
-        throw new Error(`Line ${lines.at(-1).number}: Add a bill after the divider.`);
+        throw new Error(`Line ${lines.at(-1).number}: Add a ${type} after the divider.`);
     }
 
-    return blocks.map(block => parseBill(block, date, customers, products, codes));
+    return { date, blocks };
 }
 
 function parseBillDate(dateMatch, lineNumber, type = 'bill') {
