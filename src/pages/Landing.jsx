@@ -1,3 +1,4 @@
+import { saleSubtotalCents } from '../utils/salesTrends';
 import { formatRinggit } from '../utils/formatRinggit';
 import React, { useEffect, useState } from 'react';
 import { vendorBalancesCents } from '../utils/vendorBalances';
@@ -99,31 +100,25 @@ export default function Landing() {
             // 3. Calculate Net Profit
             const netProfitTotal = todaySalesTotal - todayBillsTotal;
 
-            const currentYear = new Date().getFullYear();
-            const currentMonth = new Date().getMonth();
+            const currentYear = today.slice(0, 4);
+            const currentMonth = today.slice(0, 7);
 
             const allSalesTotal = sales
-                .filter(s => new Date(s.date).getFullYear() === currentYear)
-                .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
+                .filter(s => s.date?.slice(0, 4) === currentYear)
+                .reduce((sum, s) => sum + saleSubtotalCents(s), 0) / 100;
 
             const allBillsTotal = vendorBills
-                .filter(bill => new Date(bill.date).getFullYear() === currentYear)
+                .filter(bill => bill.date?.slice(0, 4) === currentYear)
                 .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
 
             const yearlyNetProfitTotal = allSalesTotal - allBillsTotal;
 
             const monthlySalesTotal = sales
-                .filter(s => {
-                    const saleDate = new Date(s.date);
-                    return saleDate.getFullYear() === currentYear && saleDate.getMonth() === currentMonth;
-                })
-                .reduce((sum, s) => sum + (parseFloat(s.subtotal) || 0), 0);
+                .filter(s => s.date?.slice(0, 7) === currentMonth)
+                .reduce((sum, s) => sum + saleSubtotalCents(s), 0) / 100;
 
             const monthlyBillsTotal = vendorBills
-                .filter(bill => {
-                    const billDate = new Date(bill.date);
-                    return billDate.getFullYear() === currentYear && billDate.getMonth() === currentMonth;
-                })
+                .filter(bill => bill.date?.slice(0, 7) === currentMonth)
                 .reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0);
 
             const monthlyNetProfitTotal = monthlySalesTotal - monthlyBillsTotal;
@@ -257,7 +252,7 @@ export default function Landing() {
                         </Link>
 
                         {/* Box 5: Monthly Sales */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                        <Link to="/reports?tab=monthly-sales" className="block rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md hover:bg-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-400/20 rounded-lg">
                                     <TrendingUp size={20} className="text-blue-300" />
@@ -265,7 +260,7 @@ export default function Landing() {
                                 <span className="text-blue-100 text-sm font-medium">Monthly Sales</span>
                             </div>
                             <p className="text-2xl font-bold">{formatRinggit(stats.monthlySales)}</p>
-                        </div>
+                        </Link>
                         
                         {/* Box 6: Monthly Net Profit */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
@@ -281,15 +276,15 @@ export default function Landing() {
                         </div>
 
                         {/* Box 7: Yearly Sales / Revenue */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
+                        <Link to="/reports?tab=yearly-sales" className="block rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md hover:bg-white/20">
                             <div className="flex items-center gap-3 mb-2">
                                 <div className="p-2 bg-blue-400/20 rounded-lg">
                                     <TrendingUp size={20} className="text-blue-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Total Revenue</span>
+                                <span className="text-blue-100 text-sm font-medium">Yearly Sales</span>
                             </div>
                             <p className="text-2xl font-bold">{formatRinggit(stats.totalRevenue)}</p>
-                        </div>
+                        </Link>
 
                         {/* Box 8: Yearly Net Profit */}
                         <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
