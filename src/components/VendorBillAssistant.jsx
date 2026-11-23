@@ -3,13 +3,14 @@ import { useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { db } from '../db/db';
 import { previewVendorPayments, saveVendorPayments } from '../db/vendorAssistantPayments';
-import { parseVendorPayments } from '../utils/parseBillingDraft';
+import { hasVendorBillItems, parseVendorBillDraft, parseVendorPayments } from '../utils/parseBillingDraft';
+import billingCodes from '../data/billingCodes.json';
 
 import { formatRinggit } from '../utils/formatRinggit';
 
 const formatCents = cents => formatRinggit(cents / 100);
 
-export default function VendorBillAssistant({ vendors }) {
+export default function VendorBillAssistant({ vendors, products, onReviewBill }) {
     const [params] = useSearchParams();
     const { state } = useLocation();
     const [input, setInput] = useState(state?.vendorPaymentInput ?? '');
@@ -19,12 +20,14 @@ export default function VendorBillAssistant({ vendors }) {
     const [busy, setBusy] = useState(false);
     const submitting = useRef(false);
 
+    const isItemizedBill = hasVendorBillItems(input);
+    const ready = vendors && (!isItemizedBill || products);
     const payable = previews?.filter(payment => !payment.skipReason) ?? [];
     const totalCents = payable.reduce((sum, payment) => sum + payment.amountCents, 0);
 
     const submit = async event => {
         event.preventDefault();
-        if (submitting.current || !vendors || (previews && !payable.length)) return;
+        if (submitting.current || !ready || (previews && !payable.length)) return;
         submitting.current = true;
         setBusy(true);
         setError('');
@@ -35,11 +38,13 @@ export default function VendorBillAssistant({ vendors }) {
                 setMessage(`Recorded ${payable.length} ${payable.length === 1 ? 'payment' : 'payments'} totalling ${formatCents(totalCents)}.`);
                 setPreviews(null);
                 setInput('');
+            } else if (isItemizedBill) {
+                onReviewBill(parseVendorBillDraft(input, vendors, products, billingCodes));
             } else {
                 setPreviews(await previewVendorPayments(db, parseVendorPayments(input, vendors)));
             }
-        } catch (paymentError) {
-            setError(paymentError.message);
+        } catch (reviewError) {
+            setError(reviewError.message);
             setPreviews(null);
         } finally {
             submitting.current = false;
@@ -54,9 +59,9 @@ export default function VendorBillAssistant({ vendors }) {
                 Bill Assistant
             </summary>
             <form onSubmit={submit} className="mt-4 space-y-3">
-                <label htmlFor="vendor-payment" className="block text-sm font-medium">Vendor payment shorthand</label>
+                <label htmlFor="vendor-payment" className="block text-sm font-medium">Vendor bill or payment shorthand</label>
                 <p id="vendor-payment-format" className="text-sm text-gray-600">
-                    Enter the date once on line 1. For each vendor, enter its code and balance still owed after payment. Put --- between vendors.
+                    Enter the date and vendor code on separate lines. For a new bill, add item lines such as APP 21kg 7. For a payment, enter the remaining balance, such as Bal 2500. Separate multiple vendor payments with ---.
                 </p>
                 <textarea
                     id="vendor-payment"
@@ -64,7 +69,7 @@ export default function VendorBillAssistant({ vendors }) {
                     rows={7}
                     value={input}
                     disabled={busy}
-                    placeholder={'23/11/2026\nDEA\nBal 2500\n---\nXHP\nBal 0'}
+                    placeholder={'23/11/2026\nSPF\nAPP 21kg 7'}
                     className="w-full rounded-md border border-gray-300 p-3 font-mono text-base"
                     onChange={event => {
                         setInput(event.target.value);
@@ -92,9 +97,9 @@ export default function VendorBillAssistant({ vendors }) {
                 ))}
                 {previews && payable.length > 0 && <p className="font-semibold">Total to record {formatCents(totalCents)}</p>}
                 {!(previews && !payable.length) && (
-                    <button type="submit" disabled={!vendors || busy || !input.trim()}
+                    <button type="submit" disabled={!ready || busy || !input.trim()}
                         className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50">
-                        {previews ? (payable.length === 1 ? 'Confirm payment' : 'Confirm payments') : 'Review payments'}
+                        {previews ? (payable.length === 1 ? 'Confirm payment' : 'Confirm payments') : isItemizedBill ? 'Review bill' : 'Review payments'}
                     </button>
                 )}
             </form>
