@@ -3,7 +3,7 @@ import { formatRinggit } from '../utils/formatRinggit';
 import React, { useEffect, useState } from 'react';
 import { vendorBalancesCents } from '../utils/vendorBalances';
 import { formatDate, formatDateShort } from '../utils/dateUtils';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
 import { seedDatabase } from '../utils/seedData';
@@ -17,13 +17,23 @@ import {
     ArrowRight,
     Database,
     Receipt,
-    Sparkles
+    Sparkles,
+    Send,
+    Store
 } from 'lucide-react';
 import logo from '../assets/logo.jpg';
 import poultryLogo from '../assets/poultry_logo.jpg';
 
+const dashboardLinks = [
+    { to: '/vendor-bills', label: 'Vendor Bills', icon: Receipt },
+    { to: '/reports', label: 'Reports', icon: TrendingUp },
+    { to: '/sales/send', label: 'Send Invoices', icon: Send },
+    { to: '/customers', label: 'Customers', icon: Users },
+    { to: '/products', label: 'Products', icon: Package },
+    { to: '/vendors', label: 'Vendors', icon: Store },
+];
+
 export default function Landing() {
-    const navigate = useNavigate();
     const settings = useSettings();
     const [stats, setStats] = useState({
         todaySales: 0,
@@ -156,256 +166,233 @@ export default function Landing() {
     const getCustomerName = (id) => customers?.find(c => c.id === id)?.name || 'Unknown';
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-24">
-            {/* Hero Section */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-8 pb-32">
-                <div className="max-w-5xl mx-auto">
-                    <div className="flex justify-between items-center mb-8">
-                        <div className="flex items-center gap-5">
-                            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-xl flex items-center justify-center">
-                                <img src={logo} alt="Logo" className="w-full h-full object-contain drop-shadow-md" />
-                            </div>
-                            <div>
-                                <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-sm">{settings.companyName || 'Welcome Back!'}</h1>
-                                <p className="text-blue-100 mt-1 font-medium opacity-90">Dashboard Overview</p>
-                            </div>
+        <div className="min-h-full bg-slate-50 pb-6">
+            <header className="bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-900 text-white">
+                <div className="mx-auto max-w-5xl px-4 pb-14 pt-5 sm:px-6 sm:pt-7">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                        <img src={logo} alt="" className="size-11 shrink-0 rounded-xl bg-white object-contain p-1 sm:size-14" />
+                        <div className="min-w-0 flex-1">
+                            <h1 className="text-lg font-bold leading-tight tracking-tight sm:text-2xl">{settings.companyName || 'SP Family Ventures'}</h1>
+                            <p className="mt-1 text-xs text-blue-200 sm:text-sm">{formatDate(new Date())}</p>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="w-20 h-20 bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-xl flex items-center justify-center hidden md:flex">
-                                <img src={poultryLogo} alt="Poultry Logo" className="w-full h-full object-contain drop-shadow-md" />
-                            </div>
-                            <div className="text-right hidden md:block">
-                                <p className="text-2xl font-bold">{formatDate(new Date())}</p>
-                            </div>
-                        </div>
+                        <img src={poultryLogo} alt="" className="hidden size-14 rounded-xl bg-white object-contain p-1 md:block" />
                     </div>
+                </div>
+            </header>
 
-                    <Link
-                        to="/sales"
-                        className="mb-6 inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-4 py-2 font-semibold text-blue-700 shadow-sm hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                    >
-                        <Receipt size={18} aria-hidden="true" />
-                        Recent Sales
-                        <ArrowRight size={16} aria-hidden="true" />
-                    </Link>
+            <nav aria-label="Dashboard shortcuts" className="relative mx-auto -mt-9 max-w-5xl px-4 sm:px-6">
+                <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+                    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+                        <Link
+                            to="/sales/new"
+                            className="col-span-2 flex min-h-16 items-center gap-2.5 rounded-xl bg-blue-700 px-3 py-2.5 text-white transition-colors hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 md:col-span-1"
+                        >
+                            <PlusCircle size={22} className="shrink-0" aria-hidden="true" />
+                            <span className="font-semibold">New Sale</span>
+                            <ArrowRight size={18} className="ml-auto shrink-0" aria-hidden="true" />
+                        </Link>
+                        <Link
+                            to="/sales"
+                            className="flex min-h-16 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2.5 text-sm font-semibold leading-tight text-slate-900 transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 sm:px-3 sm:text-base"
+                        >
+                            <Receipt size={19} className="shrink-0 text-blue-700" aria-hidden="true" />
+                            Recent Sales
+                        </Link>
+                        <Link
+                            to="/sales/new?assistant=1"
+                            className="flex min-h-16 items-center gap-2 rounded-xl border border-teal-200 bg-teal-50 px-2.5 py-2.5 text-sm font-semibold leading-tight text-teal-950 transition-colors hover:bg-teal-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 sm:px-3 sm:text-base"
+                        >
+                            <Sparkles size={19} className="shrink-0 text-teal-700" aria-hidden="true" />
+                            Billing Assistant
+                        </Link>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-1 border-t border-slate-100 pt-2 sm:grid-cols-3 lg:grid-cols-6">
+                        {dashboardLinks.map(({ to, label, icon }) => (
+                            <Link
+                                key={to}
+                                to={to}
+                                className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium leading-tight text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-2 focus-visible:outline-blue-700"
+                            >
+                                {React.createElement(icon, { size: 16, className: 'shrink-0 text-slate-500', 'aria-hidden': true })}
+                                {label}
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            </nav>
 
+            <section aria-labelledby="dashboard-overview" className="mx-auto mt-5 max-w-5xl px-4 sm:px-6">
+                <div className="rounded-2xl bg-slate-900 p-3 text-white sm:p-5">
+                    <h2 id="dashboard-overview" className="mb-3 px-1 text-base font-semibold">Business Overview</h2>
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
                         {/* Box 1: Today's Sales */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-400/20 rounded-lg">
-                                    <DollarSign size={20} className="text-green-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-green-400/20 rounded-lg">
+                                    <DollarSign size={15} className="text-green-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Today's Sales</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Today's Sales</span>
                             </div>
-                            <p className="text-2xl font-bold">{formatRinggit(stats.todaySales)}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl">{formatRinggit(stats.todaySales)}</p>
                         </div>
 
                         {/* Box 2: Today's Collections */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-400/20 rounded-lg">
-                                    <DollarSign size={20} className="text-blue-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-blue-400/20 rounded-lg">
+                                    <DollarSign size={15} className="text-blue-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Today's Collections</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Today's Collections</span>
                             </div>
-                            <p className="text-2xl font-bold text-white">{formatRinggit(stats.todayCollections)}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl text-white">{formatRinggit(stats.todayCollections)}</p>
                         </div>
 
                         {/* Box 3: Daily Net Profit */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-400/20 rounded-lg">
-                                    <TrendingUp size={20} className="text-green-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-green-400/20 rounded-lg">
+                                    <TrendingUp size={15} className="text-green-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Daily Net Profit</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Daily Net Profit</span>
                             </div>
-                            <p className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
+                            <p className={`text-base font-bold tabular-nums wrap-anywhere sm:text-xl ${stats.netProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
                                 {formatRinggit(stats.netProfit)}
                             </p>
                         </div>
                         
                         {/* Box 4: Total Outstanding Balance */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-red-400/20 rounded-lg">
-                                    <Receipt size={20} className="text-red-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-red-400/20 rounded-lg">
+                                    <Receipt size={15} className="text-red-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Total Outstanding</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Total Outstanding</span>
                             </div>
-                            <p className={`text-2xl font-bold ${stats.totalOutstanding > 0 ? 'text-red-300' : 'text-white'}`}>
+                            <p className={`text-base font-bold tabular-nums wrap-anywhere sm:text-xl ${stats.totalOutstanding > 0 ? 'text-red-300' : 'text-white'}`}>
                                 {formatRinggit(stats.totalOutstanding)}
                             </p>
                         </div>
 
-                        <Link to="/vendor-bills" className="block rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md hover:bg-white/20">
-                            <div className="mb-2 flex items-center gap-3">
-                                <div className="rounded-lg bg-amber-400/20 p-2">
-                                    <Receipt size={20} className="text-amber-200" />
+                        <Link to="/vendor-bills" className="block rounded-xl border border-white/20 bg-white/10 p-2.5 sm:p-4 hover:bg-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="rounded-lg bg-amber-400/20 p-1.5">
+                                    <Receipt size={15} className="text-amber-200" />
                                 </div>
-                                <span className="text-sm font-medium text-blue-100">Total Bills Outstanding</span>
+                                <span className="text-xs font-medium sm:text-sm text-blue-100">Total Bills Outstanding</span>
                             </div>
-                            <p className="text-2xl font-bold text-amber-200">
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl text-amber-200">
                                 {totalBillsOutstanding === null ? 'Loading…' : formatRinggit(totalBillsOutstanding)}
                             </p>
                         </Link>
 
                         {/* Box 5: Monthly Sales */}
-                        <Link to="/reports?tab=monthly-sales" className="block rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md hover:bg-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-400/20 rounded-lg">
-                                    <TrendingUp size={20} className="text-blue-300" />
+                        <Link to="/reports?tab=monthly-sales" className="block rounded-xl border border-white/20 bg-white/10 p-2.5 sm:p-4 hover:bg-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-blue-400/20 rounded-lg">
+                                    <TrendingUp size={15} className="text-blue-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Monthly Sales</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Monthly Sales</span>
                             </div>
-                            <p className="text-2xl font-bold">{formatRinggit(stats.monthlySales)}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl">{formatRinggit(stats.monthlySales)}</p>
                         </Link>
                         
                         {/* Box 6: Monthly Net Profit */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-400/20 rounded-lg">
-                                    <TrendingUp size={20} className="text-green-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-green-400/20 rounded-lg">
+                                    <TrendingUp size={15} className="text-green-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Monthly Net Profit</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Monthly Net Profit</span>
                             </div>
-                            <p className={`text-2xl font-bold ${stats.monthlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
+                            <p className={`text-base font-bold tabular-nums wrap-anywhere sm:text-xl ${stats.monthlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
                                 {formatRinggit(stats.monthlyNetProfit)}
                             </p>
                         </div>
 
                         {/* Box 7: Yearly Sales / Revenue */}
-                        <Link to="/reports?tab=yearly-sales" className="block rounded-xl border border-white/20 bg-white/10 p-4 backdrop-blur-md hover:bg-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-blue-400/20 rounded-lg">
-                                    <TrendingUp size={20} className="text-blue-300" />
+                        <Link to="/reports?tab=yearly-sales" className="block rounded-xl border border-white/20 bg-white/10 p-2.5 sm:p-4 hover:bg-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-blue-400/20 rounded-lg">
+                                    <TrendingUp size={15} className="text-blue-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Yearly Sales</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Yearly Sales</span>
                             </div>
-                            <p className="text-2xl font-bold">{formatRinggit(stats.totalRevenue)}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl">{formatRinggit(stats.totalRevenue)}</p>
                         </Link>
 
                         {/* Box 8: Yearly Net Profit */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-400/20 rounded-lg">
-                                    <TrendingUp size={20} className="text-green-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-green-400/20 rounded-lg">
+                                    <TrendingUp size={15} className="text-green-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Yearly Net Profit</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Yearly Net Profit</span>
                             </div>
-                            <p className={`text-2xl font-bold ${stats.yearlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
+                            <p className={`text-base font-bold tabular-nums wrap-anywhere sm:text-xl ${stats.yearlyNetProfit >= 0 ? 'text-white' : 'text-red-300'}`}>
                                 {formatRinggit(stats.yearlyNetProfit)}
                             </p>
                         </div>
 
                         {/* Box 9: Today's Vendor Bills */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-orange-400/20 rounded-lg">
-                                    <Receipt size={20} className="text-orange-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-orange-400/20 rounded-lg">
+                                    <Receipt size={15} className="text-orange-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Today's Bills</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Today's Bills</span>
                             </div>
-                            <p className="text-2xl font-bold text-orange-200">{formatRinggit(stats.todayBills)}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl text-orange-200">{formatRinggit(stats.todayBills)}</p>
                         </div>
 
                         {/* Box 10: Today's Invoices (count) */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-indigo-400/20 rounded-lg">
-                                    <Calendar size={20} className="text-indigo-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-indigo-400/20 rounded-lg">
+                                    <Calendar size={15} className="text-indigo-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Today's Invoices</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Today's Invoices</span>
                             </div>
-                            <p className="text-2xl font-bold">{stats.todayInvoices}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl">{stats.todayInvoices}</p>
                         </div>
 
                         {/* Box 11: Customers */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-purple-400/20 rounded-lg">
-                                    <Users size={20} className="text-purple-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-purple-400/20 rounded-lg">
+                                    <Users size={15} className="text-purple-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Customers</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Customers</span>
                             </div>
-                            <p className="text-2xl font-bold">{stats.customerCount}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl">{stats.customerCount}</p>
                         </div>
 
                         {/* Box 12: Products */}
-                        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-amber-400/20 rounded-lg">
-                                    <Package size={20} className="text-amber-300" />
+                        <div className="bg-white/10 rounded-xl p-2.5 sm:p-4 border border-white/20">
+                            <div className="mb-2 flex items-center gap-1.5 sm:gap-2">
+                                <div className="p-1.5 bg-amber-400/20 rounded-lg">
+                                    <Package size={15} className="text-amber-300" />
                                 </div>
-                                <span className="text-blue-100 text-sm font-medium">Products</span>
+                                <span className="text-blue-100 text-xs font-medium sm:text-sm">Products</span>
                             </div>
-                            <p className="text-2xl font-bold">{stats.productCount}</p>
+                            <p className="text-base font-bold tabular-nums wrap-anywhere sm:text-xl">{stats.productCount}</p>
                         </div>
 
                     </div>
 
                 </div>
-            </div>
+            </section>
 
-            {/* Main Content */}
-            <div className="max-w-5xl mx-auto px-4 -mt-24">
-                {/* Quick Actions */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <button
-                        onClick={() => navigate('/sales/new')}
-                        className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center text-center group"
-                    >
-                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                            <PlusCircle size={32} className="text-blue-600" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-800">New Sale</h3>
-                        <p className="text-sm text-gray-500 mt-2">Create a new invoice for a customer</p>
-                    </button>
-
-                    <button
-                        onClick={() => navigate('/sales/new?assistant=1')}
-                        className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center text-center group"
-                    >
-                        <div className="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-teal-100 transition-colors">
-                            <Sparkles size={32} className="text-teal-700" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-800">Billing Assistant</h3>
-                        <p className="text-sm text-gray-500 mt-2">Create an invoice or record a payment</p>
-                    </button>
-
-                    <button
-                        onClick={() => navigate('/customers')}
-                        className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center text-center group"
-                    >
-                        <div className="w-16 h-16 bg-purple-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-purple-100 transition-colors">
-                            <Users size={32} className="text-purple-600" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-800">Manage Customers</h3>
-                        <p className="text-sm text-gray-500 mt-2">Add or edit customer details</p>
-                    </button>
-
-                    <button
-                        onClick={() => navigate('/products')}
-                        className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 flex flex-col items-center text-center group"
-                    >
-                        <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-4 group-hover:bg-orange-100 transition-colors">
-                            <Package size={32} className="text-orange-600" />
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-800">Inventory</h3>
-                        <p className="text-sm text-gray-500 mt-2">Manage products and pricing</p>
-                    </button>
-                </div>
-
+            <div className="mx-auto mt-5 max-w-5xl px-4 sm:px-6">
                 {/* Recent Activity & Actions */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Recent Sales List */}
                     <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                             <h2 className="text-lg font-bold text-gray-800">Recent Sales</h2>
-                            <button onClick={() => navigate('/sales')} className="text-blue-600 text-sm font-medium hover:underline flex items-center gap-1">
-                                View All <ArrowRight size={16} />
-                            </button>
+                            <Link to="/sales" className="flex min-h-11 items-center gap-1 text-sm font-medium text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-blue-700">
+                                View All <ArrowRight size={16} aria-hidden="true" />
+                            </Link>
                         </div>
                         <div className="divide-y divide-gray-50">
                             {recentSales.length > 0 ? (
@@ -457,17 +444,9 @@ export default function Landing() {
                             </div>
                         )}
 
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                            <h3 className="font-bold text-gray-800 mb-4">Quick Links</h3>
-                            <div className="space-y-3">
-                                <button onClick={() => navigate('/settings')} className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-50 text-gray-600 font-medium text-sm transition-colors">
-                                    Company Settings
-                                </button>
-                                <button onClick={() => navigate('/sales')} className="w-full text-left px-4 py-2 rounded-lg hover:bg-gray-50 text-gray-600 font-medium text-sm transition-colors">
-                                    Sales History
-                                </button>
-                            </div>
-                        </div>
+                        <Link to="/settings" className="flex min-h-11 items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-blue-700">
+                            Company Settings <ArrowRight size={16} aria-hidden="true" />
+                        </Link>
                     </div>
                 </div>
             </div>
