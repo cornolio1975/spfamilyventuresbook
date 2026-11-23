@@ -74,7 +74,7 @@ export default function BillingCodeReference() {
     const [catalog, setCatalog] = useState(null);
 
     return (
-        <header className="no-print flex shrink-0 flex-wrap justify-end gap-2 border-b border-gray-200 bg-white px-3 py-2 sm:px-4">
+        <header className="no-print flex shrink-0 flex-nowrap justify-end gap-1 border-b border-gray-200 bg-white px-2 py-1 sm:gap-2 sm:px-4">
             {catalogs.map((entry) => {
                 const Icon = entry.icon;
                 return (
@@ -86,9 +86,9 @@ export default function BillingCodeReference() {
                             setCatalog(entry);
                             dialog.current.showModal();
                         }}
-                        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
+                        className="inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 px-2 text-xs font-semibold text-blue-800 hover:bg-blue-100"
                     >
-                        <Icon aria-hidden="true" size={16} />
+                        <Icon aria-hidden="true" size={14} className="hidden sm:block" />
                         {entry.label}
                     </button>
                 );
