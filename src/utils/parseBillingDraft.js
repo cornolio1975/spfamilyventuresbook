@@ -54,6 +54,52 @@ export function parsePaymentBatch(input, customers, codes) {
     });
 }
 
+const VENDOR_CODE_LINE = /^(?:[a-z]{3}|V-[^\s:,]+)$/i;
+const BALANCE_PREFIX = /^bal(?:[\s:]|$)/i;
+const VENDOR_ITEM_LINE = /^([a-z]{3})\s+(\d+(?:\.\d+)?)\s*(kg|pcs?)\s+(?:rm\s*)?(\d+(?:\.\d{1,2})?):?$/i;
+
+export function hasVendorBillItems(input) {
+    const [, ...lines] = input.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    return lines.some((line, index) =>
+        VENDOR_ITEM_LINE.test(line) ||
+        (VENDOR_CODE_LINE.test(line) && lines[index + 1] &&
+            !BALANCE_PREFIX.test(lines[index + 1]) && !SEPARATOR_LINE.test(lines[index + 1]))
+    );
+}
+
+export function parseVendorBillDraft(input, vendors, products, codes) {
+    const { date, blocks } = parseEntryBlocks(input, 'bill');
+    if (blocks.length !== 1) throw new Error('Review one itemized vendor bill at a time. Submit vendor payments separately.');
+
+    const [vendorLine, ...itemLines] = blocks[0];
+    if (!VENDOR_CODE_LINE.test(vendorLine?.text ?? '')) {
+        throw new Error('Put the vendor code on its own line after the date.');
+    }
+    const code = vendorLine.text.toUpperCase();
+    const vendor = resolveVendorCode(code, vendors);
+    if (!vendor) throw new Error(`Line ${vendorLine.number}: Unknown vendor code ${code}.`);
+
+    const lastLine = itemLines.at(-1);
+    const balanceMatch = lastLine?.text.match(BALANCE_LINE);
+    const prevBalance = balanceMatch ? Number(balanceMatch[1]) : 0;
+    if (!Number.isFinite(prevBalance)) throw new Error(`Line ${lastLine.number}: Enter a valid previous balance.`);
+    if (balanceMatch) itemLines.pop();
+
+    const items = itemLines.flatMap(line => {
+        try {
+            const match = line.text.match(VENDOR_ITEM_LINE);
+            if (!match) throw new Error('Use item code, quantity with unit, and unit price. Example: APP 21kg 7.');
+            const [, productCode, rawQuantity, rawUnit, rawPrice] = match;
+            return parseItem(productCode, rawQuantity, rawUnit, rawPrice, products, codes);
+        } catch (error) {
+            throw new Error(`Line ${line.number}: ${error.message}`);
+        }
+    });
+
+    if (!items.length) throw new Error('Include at least one item with a nonzero amount for this bill.');
+    return { date, vendorId: vendor.id, items, prevBalance };
+}
+
 export function parseVendorPayments(input, vendors) {
     const { date, blocks } = parseEntryBlocks(input, 'payment');
     const seen = new Set();
@@ -169,14 +215,7 @@ function parseBill(itemLines, date, customers, products, codes) {
             }
             if (!customer || (!customerLine && !customerCode)) throw new Error('Put the customer code on its own line after the date.');
 
-            const product = lookupRecord(productCode.toUpperCase(), codes.products, products, 'Item');
-            const qty = Number(rawQuantity);
-            const price = Number(rawPrice);
-            const amount = qty * price;
-            if (!Number.isFinite(amount)) throw new Error('Enter a valid quantity and unit price.');
-            if (!hasBillableAmount(amount)) return [];
-
-            return [{ productId: product.id, qty, unit: rawUnit.toLowerCase() === 'kg' ? 'Kg' : 'Pcs', price, discount: 0, memo: '' }];
+            return parseItem(productCode, rawQuantity, rawUnit, rawPrice, products, codes);
         } catch (error) {
             throw new Error(`Line ${line.number}: ${error.message}`);
         }
@@ -187,4 +226,16 @@ function parseBill(itemLines, date, customers, products, codes) {
     }
 
     return { date, customerId: customer.id, items, prevBalance };
+}
+
+
+function parseItem(productCode, rawQuantity, rawUnit, rawPrice, products, codes) {
+    const product = lookupRecord(productCode.toUpperCase(), codes.products, products, 'Item');
+    const qty = Number(rawQuantity);
+    const price = Number(rawPrice);
+    const amount = qty * price;
+    if (!Number.isFinite(amount)) throw new Error('Enter a valid quantity and unit price.');
+    if (!hasBillableAmount(amount)) return [];
+
+    return [{ productId: product.id, qty, unit: rawUnit.toLowerCase() === 'kg' ? 'Kg' : 'Pcs', price, discount: 0, memo: '' }];
 }

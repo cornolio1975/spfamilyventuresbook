@@ -22,21 +22,23 @@ export default function VendorBills() {
     const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState(null);
     const [editingBill, setEditingBill] = useState(null);
+    const [assistantVersion, setAssistantVersion] = useState(0);
     const [isSaving, setIsSaving] = useState(false);
     const saveInProgress = useRef(false);
 
     const getVendorName = (id) => vendors?.find(v => String(v.id) === String(id))?.name || 'Unknown Vendor';
 
-    const handleOpenModal = (bill = null) => {
+    const handleOpenModal = (bill = null, draft = null) => {
         setEditingBill(bill);
         setFormData({
-            vendorId: bill?.vendorId ?? '',
-            date: bill?.date ?? formatDateShort(new Date()),
+            vendorId: draft?.vendorId ?? bill?.vendorId ?? '',
+            date: draft?.date ?? bill?.date ?? formatDateShort(new Date()),
             total: bill?.total ?? '',
             memo: bill?.memo ?? '',
-            prevBalance: bill?.prevBalance ?? 0,
+            prevBalance: draft?.prevBalance ?? bill?.prevBalance ?? 0,
             paidAmount: bill?.paidAmount ?? 0,
-            items: bill ? (bill.items ?? []) : [{ ...blankItem }]
+            items: draft?.items ?? (bill ? (bill.items ?? []) : [{ ...blankItem }]),
+            fromAssistant: Boolean(draft)
         });
     };
 
@@ -102,6 +104,7 @@ export default function VendorBills() {
             } else {
                 await db.vendor_purchases.add(billData);
             }
+            if (formData.fromAssistant) setAssistantVersion(version => version + 1);
             handleCloseModal();
         } catch (error) {
             console.error('Failed to save vendor bill:', error);
@@ -137,7 +140,8 @@ export default function VendorBills() {
                 </button>
             </div>
 
-            <VendorBillAssistant vendors={vendors} />
+            <VendorBillAssistant key={assistantVersion} vendors={vendors} products={products}
+                onReviewBill={draft => handleOpenModal(null, draft)} />
 
             {/* Search */}
             <div className="relative mb-4">
