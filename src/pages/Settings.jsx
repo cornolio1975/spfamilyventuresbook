@@ -248,7 +248,7 @@ export default function Settings() {
                     <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
                         <h3 className="font-semibold text-blue-900 mb-2">Backup & Restore</h3>
                         <p className="text-sm text-blue-700 mb-4">
-                            Save your data to a file or restore from a backup. Use this to move data between devices.
+                            Export business records to a verified JSON file. Use Import Data on either device to add missing records. Login credentials stay on the device.
                         </p>
                         <div className="flex flex-col md:flex-row gap-4">
                             <button
@@ -267,14 +267,11 @@ export default function Settings() {
                                     accept=".json"
                                     className="hidden"
                                     onChange={async (e) => {
-                                        if (e.target.files?.[0]) {
-                                            if (confirm('This will merge the backup data with your current data. Continue?')) {
-                                                const result = await importDatabase(e.target.files[0]);
-                                                alert(result.message);
-                                                if (result.success) {
-                                                    window.location.reload();
-                                                }
-                                            }
+                                        const file = e.target.files?.[0];
+                                        e.target.value = '';
+                                        if (file && confirm('Add missing records from this file? If an existing record differs, the import will stop.')) {
+                                            const result = await importDatabase(file);
+                                            alert(result.message);
                                         }
                                     }}
                                 />

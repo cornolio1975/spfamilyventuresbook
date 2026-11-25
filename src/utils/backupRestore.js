@@ -1,78 +1,113 @@
-import { db } from '../db/hooks';
+import { db } from '../db/db';
 import { formatDateShort } from './dateUtils';
 
-export const exportDatabase = async () => {
+const collections = [
+    'customers', 'products', 'sales', 'settings',
+    'vendors', 'vendor_purchases', 'payments', 'vendor_payments',
+];
+const legacyCollections = collections.slice(0, 4);
+
+function sortKeys(value) {
+    if (Array.isArray(value)) return value.map(sortKeys);
+    if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.keys(value).sort().map(key => [key, sortKeys(value[key])]));
+    }
+    return value;
+}
+
+async function checksum(data) {
+    const bytes = new TextEncoder().encode(JSON.stringify(sortKeys(data)));
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function readBackup(data) {
+    if (!data || ![1, 2].includes(data.version)) throw new Error('Unsupported backup format.');
+
+    const names = data.version === 2 ? collections : legacyCollections;
+    for (const name of names) {
+        const rows = data[name];
+        if (data.version === 1 && name === 'settings' && rows === undefined) continue;
+        if (!Array.isArray(rows)) throw new Error(`Missing or invalid table: ${name}.`);
+        const ids = new Set();
+        for (const row of rows) {
+            const id = row?.id;
+            if (!row || Array.isArray(row) ||
+                !(Number.isSafeInteger(id) || (typeof id === 'string' && id.trim())) ||
+                ids.has(String(id))) {
+                throw new Error(`Invalid or duplicate record ID in ${name}.`);
+            }
+            ids.add(String(id));
+        }
+    }
+
+    if (data.version === 2) {
+        const { sha256, ...payload } = data;
+        if (await checksum(payload) !== sha256) throw new Error('Backup checksum does not match.');
+    }
+    return names.filter(name => data[name] !== undefined);
+}
+
+export async function exportDatabase() {
     try {
-        const customers = await db.customers.toArray();
-        const products = await db.products.toArray();
-        const sales = await db.sales.toArray();
-        const settings = await db.settings.toArray();
-
-        const data = {
-            version: 1,
+        const tables = collections.map(name => db.table(name));
+        const rows = await db.transaction('r', tables, () => Promise.all(tables.map(table => table.toArray())));
+        const data = JSON.parse(JSON.stringify({
+            version: 2,
             timestamp: new Date().toISOString(),
-            customers,
-            products,
-            sales,
-            settings
+            ...Object.fromEntries(collections.map((name, index) => [name, rows[index]])),
+        }));
+        data.sha256 = await checksum(data);
+        const file = JSON.stringify(data, null, 2);
+        await readBackup(JSON.parse(file));
+
+        const url = URL.createObjectURL(new Blob([file], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `sp_sales_backup_${formatDateShort(new Date())}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+
+        return {
+            success: true,
+            message: `Verified ${rows.reduce((total, table) => total + table.length, 0)} records across ${tables.length} tables. Check your downloads for the backup file.`,
         };
-
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `sp_sales_backup_${formatDateShort(new Date())}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        return { success: true, message: 'Backup exported successfully.' };
     } catch (error) {
         console.error('Export failed:', error);
-        return { success: false, message: 'Failed to export backup.' };
+        return { success: false, message: 'Failed to export and verify the backup.' };
     }
-};
+}
 
-export const importDatabase = async (file) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-
-        reader.onload = async (e) => {
-            try {
-                const data = JSON.parse(e.target.result);
-
-                if (!data.customers || !data.products || !data.sales) {
-                    throw new Error('Invalid backup file format.');
+export async function importDatabase(file) {
+    try {
+        const data = JSON.parse(await file.text());
+        const names = await readBackup(data);
+        let added = 0;
+        let skipped = 0;
+        await db.transaction('rw', names.map(name => db.table(name)), async () => {
+            for (const name of names) {
+                const table = db.table(name);
+                for (const row of data[name]) {
+                    const alternateId = typeof row.id === 'number' ? String(row.id) : Number(row.id);
+                    const existing = await table.get(row.id) ??
+                        (String(alternateId) === String(row.id) ? await table.get(alternateId) : undefined);
+                    if (existing === undefined) {
+                        await table.add(row);
+                        added++;
+                    } else if (JSON.stringify(sortKeys(existing)) === JSON.stringify(sortKeys(row))) {
+                        skipped++;
+                    } else {
+                        throw new Error(`Record ${row.id} in ${name} differs from the current data.`);
+                    }
                 }
-
-                await db.transaction('rw', db.customers, db.products, db.sales, db.settings, async () => {
-                    // We use bulkPut to update existing records and add new ones
-                    // This is a "Merge" strategy. To do a full "Replace", we would clear() first.
-                    // For safety, let's clear first to avoid ID conflicts if the user wants a clean restore.
-                    // However, clearing might lose local data if the backup is partial.
-                    // Let's stick to bulkPut for now as it's safer for "syncing" data.
-                    // Actually, for a true "Restore", clearing is usually expected to match the backup state.
-                    // Let's ask the user? No, let's do a safe merge (bulkPut) for now.
-
-                    if (data.customers.length) await db.customers.bulkPut(data.customers);
-                    if (data.products.length) await db.products.bulkPut(data.products);
-                    if (data.sales.length) await db.sales.bulkPut(data.sales);
-                    if (data.settings && data.settings.length) await db.settings.bulkPut(data.settings);
-                });
-
-                resolve({ success: true, message: 'Backup imported successfully.' });
-            } catch (error) {
-                console.error('Import failed:', error);
-                resolve({ success: false, message: 'Failed to import backup. Invalid file.' });
             }
-        };
-
-        reader.onerror = () => {
-            resolve({ success: false, message: 'Failed to read file.' });
-        };
-
-        reader.readAsText(file);
-    });
-};
+        });
+        const legacyNote = data.version === 1 ? ' This older file contains only the original backup tables.' : '';
+        return { success: true, message: `Imported ${added} records on this device. ${skipped} already matched.${legacyNote}` };
+    } catch (error) {
+        console.error('Import failed:', error);
+        return { success: false, message: `Import stopped. No records were changed. ${error.message}` };
+    }
+}
