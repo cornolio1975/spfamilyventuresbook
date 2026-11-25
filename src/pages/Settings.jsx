@@ -269,7 +269,7 @@ export default function Settings() {
                                     onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         e.target.value = '';
-                                        if (file && confirm('Add missing records from this file? If an existing record differs, the import will stop.')) {
+                                        if (file) {
                                             const result = await importDatabase(file);
                                             alert(result.message);
                                         }
