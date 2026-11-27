@@ -81,9 +81,13 @@ export function parseVendorBillDraft(input, vendors, products, codes) {
 
     const lastLine = itemLines.at(-1);
     const balanceMatch = lastLine?.text.match(BALANCE_LINE);
-    const prevBalance = balanceMatch ? Number(balanceMatch[1]) : 0;
-    if (!Number.isFinite(prevBalance)) throw new Error(`Line ${lastLine.number}: Enter a valid previous balance.`);
-    if (balanceMatch) itemLines.pop();
+    const previousBalanceCents = balanceMatch ? Math.round(Number(balanceMatch[1]) * 100) : undefined;
+    if (balanceMatch) {
+        if (!Number.isSafeInteger(previousBalanceCents) || Number(balanceMatch[1]) < 0) {
+            throw new Error(`Line ${lastLine.number}: Enter a valid previous balance.`);
+        }
+        itemLines.pop();
+    }
 
     const items = itemLines.flatMap(line => {
         try {
@@ -97,7 +101,7 @@ export function parseVendorBillDraft(input, vendors, products, codes) {
     });
 
     if (!items.length) throw new Error('Include at least one item with a nonzero amount for this bill.');
-    return { date, vendorId: vendor.id, items, prevBalance };
+    return { date, vendorId: vendor.id, items, previousBalanceCents };
 }
 
 export function parseVendorPayments(input, vendors) {

@@ -1,21 +1,9 @@
 import { customerOutstandingCents } from '../utils/customerOutstanding.js';
 import { formatDateShort } from '../utils/dateUtils.js';
-import { hasBillableAmount } from '../utils/billingItemAmount.js';
+import { billableItemsKey } from '../utils/billingItemAmount.js';
 
 function saleKey(sale, includePreviousBalance = false) {
-    const billableItems = sale.items.filter(item => hasBillableAmount(item.qty * item.price - (item.discount || 0)));
-    const items = billableItems.map(item => {
-        const unit = String(item.unit ?? '').trim().toLowerCase();
-        return JSON.stringify([
-            Number(item.productId),
-            Number(item.qty),
-            unit === 'pc' ? 'pcs' : unit,
-            Number(item.price),
-            Number(item.discount || 0)
-        ]);
-    }).sort();
-
-    const key = [sale.date, Number(sale.customerId), items];
+    const key = [sale.date, Number(sale.customerId), billableItemsKey(sale.items)];
     if (includePreviousBalance) key.push(Number(sale.prevBalance || 0));
     return JSON.stringify(key);
 }

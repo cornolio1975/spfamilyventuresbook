@@ -2,7 +2,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import { useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { db } from '../db/db';
-import { previewVendorPayments, saveVendorPayments } from '../db/vendorAssistantPayments';
+import { previewVendorBillBalance, previewVendorPayments, saveVendorPayments } from '../db/vendorAssistantPayments';
 import { hasVendorBillItems, parseVendorBillDraft, parseVendorPayments } from '../utils/parseBillingDraft';
 import billingCodes from '../data/billingCodes.json';
 
@@ -39,7 +39,11 @@ export default function VendorBillAssistant({ vendors, products, onReviewBill })
                 setPreviews(null);
                 setInput('');
             } else if (isItemizedBill) {
-                onReviewBill(parseVendorBillDraft(input, vendors, products, billingCodes));
+                const draft = parseVendorBillDraft(input, vendors, products, billingCodes);
+                const reconciliation = draft.previousBalanceCents === undefined
+                    ? null
+                    : await previewVendorBillBalance(db, draft);
+                onReviewBill(draft, reconciliation);
             } else {
                 setPreviews(await previewVendorPayments(db, parseVendorPayments(input, vendors)));
             }
@@ -61,7 +65,7 @@ export default function VendorBillAssistant({ vendors, products, onReviewBill })
             <form onSubmit={submit} className="mt-4 space-y-3">
                 <label htmlFor="vendor-payment" className="block text-sm font-medium">Vendor bill or payment shorthand</label>
                 <p id="vendor-payment-format" className="text-sm text-gray-600">
-                    Enter the date and vendor code on separate lines. For a new bill, add item lines such as APP 21kg 7. For a payment, enter the remaining balance, such as Bal 2500. Separate multiple vendor payments with ---.
+                    Enter the date and vendor code on separate lines. For a new bill, add item lines such as APP 21kg 7 and optionally enter Bal for the previous balance after payment, before adding the new bill. For a payment, enter the remaining balance, such as Bal 2500. Separate multiple vendor payments with ---.
                 </p>
                 <textarea
                     id="vendor-payment"

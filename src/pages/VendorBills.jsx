@@ -3,6 +3,7 @@ import { formatDateShort } from '../utils/dateUtils';
 import { useLiveQuery } from 'dexie-react-hooks';
 import VendorBillAssistant from '../components/VendorBillAssistant';
 import { db } from '../db/db';
+import { saveReconciledVendorBill } from '../db/vendorAssistantPayments';
 import { Plus, Search, Trash2, Edit } from 'lucide-react';
 
 const inputClass = 'w-full rounded-md border p-2';
@@ -28,17 +29,18 @@ export default function VendorBills() {
 
     const getVendorName = (id) => vendors?.find(v => String(v.id) === String(id))?.name || 'Unknown Vendor';
 
-    const handleOpenModal = (bill = null, draft = null) => {
+    const handleOpenModal = (bill = null, draft = null, reconciliation = null) => {
         setEditingBill(bill);
         setFormData({
             vendorId: draft?.vendorId ?? bill?.vendorId ?? '',
             date: draft?.date ?? bill?.date ?? formatDateShort(new Date()),
             total: bill?.total ?? '',
             memo: bill?.memo ?? '',
-            prevBalance: draft?.prevBalance ?? bill?.prevBalance ?? 0,
+            prevBalance: draft ? (draft.previousBalanceCents ?? 0) / 100 : (bill?.prevBalance ?? 0),
             paidAmount: bill?.paidAmount ?? 0,
             items: draft?.items ?? (bill ? (bill.items ?? []) : [{ ...blankItem }]),
-            fromAssistant: Boolean(draft)
+            fromAssistant: Boolean(draft),
+            reconciliation
         });
     };
 
@@ -55,6 +57,7 @@ export default function VendorBills() {
 
     const isLegacy = Boolean(editingBill && !editingBill.items?.length);
     const items = formData?.items ?? [];
+    const reconciliation = formData?.reconciliation;
     const subtotal = items.length
         ? roundMoney(items.reduce((sum, item) => sum + lineAmount(item), 0))
         : Number(formData?.total ?? 0);
@@ -101,6 +104,8 @@ export default function VendorBills() {
         try {
             if (editingBill) {
                 await db.vendor_purchases.update(editingBill.id, billData);
+            } else if (reconciliation) {
+                await saveReconciledVendorBill(db, billData, reconciliation.outstandingCents);
             } else {
                 await db.vendor_purchases.add(billData);
             }
@@ -108,7 +113,7 @@ export default function VendorBills() {
             handleCloseModal();
         } catch (error) {
             console.error('Failed to save vendor bill:', error);
-            alert('Unable to save the vendor bill. Please try again.');
+            alert(reconciliation ? error.message : 'Unable to save the vendor bill. Please try again.');
         } finally {
             saveInProgress.current = false;
             setIsSaving(false);
@@ -141,7 +146,7 @@ export default function VendorBills() {
             </div>
 
             <VendorBillAssistant key={assistantVersion} vendors={vendors} products={products}
-                onReviewBill={draft => handleOpenModal(null, draft)} />
+                onReviewBill={(draft, preview) => handleOpenModal(null, draft, preview)} />
 
             {/* Search */}
             <div className="relative mb-4">
@@ -227,10 +232,10 @@ export default function VendorBills() {
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <BillField label="Date">
-                                    <input type="date" required value={formData.date} onChange={e => updateField('date', e.target.value)} className={inputClass} />
+                                    <input type="date" required disabled={Boolean(reconciliation)} value={formData.date} onChange={e => updateField('date', e.target.value)} className={inputClass} />
                                 </BillField>
                                 <BillField label="Vendor">
-                                    <select required value={formData.vendorId} onChange={e => updateField('vendorId', e.target.value)} className={inputClass}>
+                                    <select required disabled={Boolean(reconciliation)} value={formData.vendorId} onChange={e => updateField('vendorId', e.target.value)} className={inputClass}>
                                         <option value="">Select Vendor</option>
                                         {vendors?.map(vendor => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
                                     </select>
@@ -287,11 +292,18 @@ export default function VendorBills() {
                             )}
                             <div className="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3">
                                 <BillField label="Previous Balance (RM)">
-                                    <input type="number" step="0.01" value={formData.prevBalance} onChange={e => updateField('prevBalance', e.target.value)} className={inputClass} />
+                                    <input type="number" step="0.01" readOnly={Boolean(reconciliation)} value={formData.prevBalance} onChange={e => updateField('prevBalance', e.target.value)} className={inputClass} />
                                 </BillField>
-                                <BillField label="Amount Paid (RM)">
-                                    <input type="number" min="0" step="0.01" value={formData.paidAmount} onChange={e => updateField('paidAmount', e.target.value)} className={inputClass} />
-                                </BillField>
+                                {reconciliation ? (
+                                    <span className="text-sm font-medium">
+                                        Payment Against Previous Balance
+                                        <strong className="mt-2 block">RM {(reconciliation.paymentCents / 100).toFixed(2)}</strong>
+                                    </span>
+                                ) : (
+                                    <BillField label="Amount Paid (RM)">
+                                        <input type="number" min="0" step="0.01" value={formData.paidAmount} onChange={e => updateField('paidAmount', e.target.value)} className={inputClass} />
+                                    </BillField>
+                                )}
                                 <span className="col-span-2 flex justify-between text-sm">Subtotal <strong>RM {subtotal.toFixed(2)}</strong></span>
                                 <span className="col-span-2 flex justify-between font-bold">Grand Total <span>RM {grandTotal.toFixed(2)}</span></span>
                                 <span className="col-span-2 flex justify-between text-sm">Balance Due <strong>RM {balanceDue.toFixed(2)}</strong></span>
