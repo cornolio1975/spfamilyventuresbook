@@ -1,0 +1,1 @@
+import{W as e}from"./index-CJjjmfob.js";import"./vendor-firebase-DM9Qp84I.js";import"./vendor-react-C88NtW8Y.js";import"./vendor-db-CViI1DE6.js";import"./vendor-ui-CBBuJmt5.js";class l extends e{async canOpenUrl(r){return{value:!0}}async openUrl(r){return window.open(r.url,"_blank"),{completed:!0}}}export{l as AppLauncherWeb};
