@@ -24,7 +24,7 @@ export default function NewSale() {
     const [prevBalance, setPrevBalance] = useState(0);
     const [prevBalanceMemo, setPrevBalanceMemo] = useState('');
     const [paidAmount, setPaidAmount] = useState(0);
-    const [remainingCents, setRemainingCents] = useState(undefined);
+    const [billingReconciliation, setBillingReconciliation] = useState(null);
     const [isViewMode, setIsViewMode] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [isFitOpen, setIsFitOpen] = useState(false);
@@ -44,7 +44,7 @@ export default function NewSale() {
     // Load existing sale if ID is present
     useEffect(() => {
         fromBillingAssistant.current = false;
-        setRemainingCents(undefined);
+        setBillingReconciliation(null);
         if (id) {
             const currentId = parseInt(id);
             db.sales.get(currentId).then(sale => {
@@ -109,12 +109,10 @@ export default function NewSale() {
         return calculateSubtotal() + parseFloat(prevBalance || 0);
     };
 
-    const isReconciling = remainingCents !== undefined;
-    const reconciliationPayment = (Math.round(calculateSubtotal() * 100) +
-        Math.round(prevBalance * 100) - remainingCents) / 100;
+    const isReconciling = billingReconciliation !== null;
 
     const applyBillingDraft = async (draft) => {
-        const preview = draft.remainingCents === undefined ? null : await previewAssistantSale(db, {
+        const preview = draft.previousBalanceCents === undefined ? null : await previewAssistantSale(db, {
             ...draft,
             subtotal: calculateSubtotal(draft.items)
         });
@@ -122,8 +120,8 @@ export default function NewSale() {
         setSaleDate(draft.date);
         setSelectedCustomer(draft.customerId);
         setItems(draft.items);
-        setPrevBalance(preview?.prevBalance ?? 0);
-        setRemainingCents(draft.remainingCents);
+        setPrevBalance((draft.previousBalanceCents ?? 0) / 100);
+        setBillingReconciliation(preview);
         setPrevBalanceMemo('');
         setPaidAmount(0);
     };
@@ -186,8 +184,8 @@ export default function NewSale() {
                 if (fromBillingAssistant.current) {
                     const { ids } = await saveAssistantSales(db, [{
                         ...saleData,
-                        remainingCents,
-                        expectedPreviousCents: isReconciling ? Math.round(prevBalance * 100) : undefined
+                        previousBalanceCents: isReconciling ? Math.round(prevBalance * 100) : undefined,
+                        expectedOutstandingCents: billingReconciliation?.outstandingCents
                     }]);
                     if (!ids.length) {
                         alert('Duplicate bill. This invoice is already in Sales.');
@@ -556,31 +554,31 @@ export default function NewSale() {
                             </div>
                         </div>
 
-                        <div className="border-t pt-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Amount Paid</label>
-                            <div className="flex justify-end">
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="0.00"
-                                    value={isReconciling ? reconciliationPayment.toFixed(2) : paidAmount}
-                                    readOnly={isReconciling}
-                                    onChange={(e) => setPaidAmount(e.target.value)}
-                                    className="w-32 p-2 border rounded-md text-right font-bold text-green-700"
-                                />
+                        {isReconciling ? (
+                            <div className="flex justify-between items-center border-t pt-4">
+                                <span className="font-medium">Payment Received Against Previous Balance</span>
+                                <span className="font-bold text-green-700">RM {(billingReconciliation.paymentCents / 100).toFixed(2)}</span>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="border-t pt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Amount Paid</label>
+                                <div className="flex justify-end">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        value={paidAmount}
+                                        onChange={(e) => setPaidAmount(e.target.value)}
+                                        className="w-32 p-2 border rounded-md text-right font-bold text-green-700"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex justify-between items-center border-t pt-4 text-lg">
                             <span className="font-bold">Grand Total</span>
                             <span className="font-bold text-blue-600">RM {calculateGrandTotal().toFixed(2)}</span>
                         </div>
-                        {isReconciling && (
-                            <div className="flex justify-between items-center border-t pt-4">
-                                <span className="font-bold">Remaining Balance</span>
-                                <span className="font-bold">RM {(remainingCents / 100).toFixed(2)}</span>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}

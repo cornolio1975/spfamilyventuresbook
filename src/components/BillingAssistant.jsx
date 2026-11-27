@@ -80,7 +80,7 @@ export default function BillingAssistant({ customers, products, open, hasItems, 
                     Bill or payment shorthand
                 </label>
                 <p id="billing-format" className="text-sm text-gray-600">
-                    Enter the date once on the first line. For payments, enter each customer code and remaining balance, for example HPL Bal 2500. For bills, enter the customer code, items and optional Bal for the remaining balance after the sale and payment. Put --- between customers and submit bills and payments separately.
+                    Enter the date once on the first line. For payments, enter each customer code and remaining balance, for example HPL Bal 2500. For bills, enter the customer code, items and optional Bal for the previous balance after payment, before adding the new bill. Put --- between customers and submit bills and payments separately.
                 </p>
                 <textarea
                     id="billing-shorthand"

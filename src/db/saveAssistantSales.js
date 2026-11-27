@@ -20,7 +20,7 @@ function saleKey(sale, includePreviousBalance = false) {
     return JSON.stringify(key);
 }
 
-async function getPreviousBalance(db, { customerId, date }) {
+async function getOutstanding(db, { customerId, date }) {
     const customerIds = [Number(customerId), String(customerId)];
     const [sales, payments] = await Promise.all([
         db.sales.where('customerId').anyOf(customerIds).toArray(),
@@ -30,37 +30,43 @@ async function getPreviousBalance(db, { customerId, date }) {
         throw new Error('Choose a date on or after the customer’s first recorded invoice to reconcile the balance.');
     }
     return {
-        previousCents: customerOutstandingCents(sales, payments, date),
+        outstandingCents: customerOutstandingCents(sales, payments, date),
         openingBalance: sales.length ? undefined : 0
     };
 }
 
-function reconcileSale(sale, previousCents, remainingCents) {
+function reconcileSale(sale, outstandingCents, previousBalanceCents) {
     if (sale.date > formatDateShort(new Date())) {
         throw new Error('A balance reconciliation cannot be dated in the future.');
     }
 
-    const dueCents = previousCents + Math.round(sale.subtotal * 100);
-    const paymentCents = dueCents - remainingCents;
-    if (!Number.isSafeInteger(paymentCents) || !Number.isSafeInteger(remainingCents) || remainingCents < 0) {
-        throw new Error('Enter a valid remaining balance and bill total.');
+    const subtotalCents = Math.round(sale.subtotal * 100);
+    const dueCents = previousBalanceCents + subtotalCents;
+    const paymentCents = outstandingCents - previousBalanceCents;
+    if (!Number.isSafeInteger(dueCents) || !Number.isSafeInteger(paymentCents) ||
+        !Number.isSafeInteger(previousBalanceCents) || previousBalanceCents < 0) {
+        throw new Error('Enter a valid previous balance and bill total.');
     }
     if (paymentCents < 0) {
-        throw new Error(`The remaining balance exceeds the RM ${(dueCents / 100).toFixed(2)} due after adding this bill. Check the balance and customer history.`);
+        throw new Error(`The previous balance exceeds the customer’s recorded outstanding of RM ${(outstandingCents / 100).toFixed(2)}. Check the balance and customer history.`);
     }
     return {
-        ...sale,
-        subtotal: Math.round(sale.subtotal * 100) / 100,
-        prevBalance: previousCents / 100,
-        grandTotal: dueCents / 100,
-        paidAmount: paymentCents / 100
+        paymentCents,
+        invoice: {
+            ...sale,
+            subtotal: subtotalCents / 100,
+            prevBalance: previousBalanceCents / 100,
+            grandTotal: dueCents / 100,
+            paidAmount: 0
+        }
     };
 }
 
 export function previewAssistantSale(db, draft) {
     return db.transaction('r', db.sales, db.payments, async () => {
-        const { previousCents } = await getPreviousBalance(db, draft);
-        return reconcileSale(draft, previousCents, draft.remainingCents);
+        const { outstandingCents } = await getOutstanding(db, draft);
+        const { paymentCents } = reconcileSale(draft, outstandingCents, draft.previousBalanceCents);
+        return { outstandingCents, paymentCents };
     });
 }
 
@@ -73,28 +79,28 @@ export function saveAssistantSales(db, sales) {
         const seenWithBalance = new Set(comparableSales.map(sale => saleKey(sale, true)));
         const ids = [];
 
-        for (const { remainingCents, expectedPreviousCents, ...sale } of sales) {
+        for (const { previousBalanceCents, expectedOutstandingCents, ...sale } of sales) {
             const key = saleKey(sale);
-            if (remainingCents === undefined ? seenWithBalance.has(saleKey(sale, true)) : seen.has(key)) continue;
+            if (previousBalanceCents === undefined ? seenWithBalance.has(saleKey(sale, true)) : seen.has(key)) continue;
 
-            if (remainingCents === undefined) {
+            if (previousBalanceCents === undefined) {
                 ids.push(await db.sales.add(sale));
                 seenWithBalance.add(saleKey(sale, true));
             } else {
-                const { previousCents, openingBalance } = await getPreviousBalance(db, sale);
-                if (expectedPreviousCents !== undefined && previousCents !== expectedPreviousCents) {
+                const { outstandingCents, openingBalance } = await getOutstanding(db, sale);
+                if (expectedOutstandingCents !== undefined && outstandingCents !== expectedOutstandingCents) {
                     throw new Error('The customer balance changed. Review the Billing Assistant entry again before saving.');
                 }
-                const reconciled = reconcileSale(sale, previousCents, remainingCents);
-                if (openingBalance !== undefined) reconciled.openingBalance = openingBalance;
-                const id = await db.sales.add(reconciled);
-                seenWithBalance.add(saleKey(reconciled, true));
-                if (reconciled.paidAmount > 0) {
+                const { invoice, paymentCents } = reconcileSale(sale, outstandingCents, previousBalanceCents);
+                if (openingBalance !== undefined) invoice.openingBalance = openingBalance;
+                const id = await db.sales.add(invoice);
+                seenWithBalance.add(saleKey(invoice, true));
+                if (paymentCents > 0) {
                     await db.payments.add({
                         id: `assistant-sale-payment:${id}`,
                         customerId: sale.customerId,
                         date: sale.date,
-                        amount: reconciled.paidAmount,
+                        amount: paymentCents / 100,
                         memo: `Billing Assistant invoice #${id}`
                     });
                 }
