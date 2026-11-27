@@ -102,7 +102,7 @@ export default function Landing() {
                     return a.id - b.id;
                 });
                 const firstSale = sortedSales[0];
-                return sum + (firstSale ? (parseFloat(firstSale.prevBalance) || 0) : 0);
+                return sum + (firstSale ? (parseFloat(firstSale.openingBalance ?? firstSale.prevBalance) || 0) : 0);
             }, 0);
 
             totalOutstandingTotal = totalSalesAmount + initialBalancesAmount - totalPaymentsAmount;

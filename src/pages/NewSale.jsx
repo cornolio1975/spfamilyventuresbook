@@ -3,7 +3,7 @@ import { formatDateShort } from '../utils/dateUtils';
 import { useReactToPrint } from 'react-to-print';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, useSettings } from '../db/hooks';
-import { saveAssistantSales } from '../db/saveAssistantSales';
+import { previewAssistantSale, saveAssistantSales } from '../db/saveAssistantSales';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Printer, Save, ArrowLeft, Eye, Maximize, ChevronLeft, ChevronRight } from 'lucide-react';
 import InvoiceView from '../components/InvoiceView';
@@ -24,6 +24,7 @@ export default function NewSale() {
     const [prevBalance, setPrevBalance] = useState(0);
     const [prevBalanceMemo, setPrevBalanceMemo] = useState('');
     const [paidAmount, setPaidAmount] = useState(0);
+    const [remainingCents, setRemainingCents] = useState(undefined);
     const [isViewMode, setIsViewMode] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [isFitOpen, setIsFitOpen] = useState(false);
@@ -43,6 +44,7 @@ export default function NewSale() {
     // Load existing sale if ID is present
     useEffect(() => {
         fromBillingAssistant.current = false;
+        setRemainingCents(undefined);
         if (id) {
             const currentId = parseInt(id);
             db.sales.get(currentId).then(sale => {
@@ -107,12 +109,21 @@ export default function NewSale() {
         return calculateSubtotal() + parseFloat(prevBalance || 0);
     };
 
-    const applyBillingDraft = (draft) => {
+    const isReconciling = remainingCents !== undefined;
+    const reconciliationPayment = (Math.round(calculateSubtotal() * 100) +
+        Math.round(prevBalance * 100) - remainingCents) / 100;
+
+    const applyBillingDraft = async (draft) => {
+        const preview = draft.remainingCents === undefined ? null : await previewAssistantSale(db, {
+            ...draft,
+            subtotal: calculateSubtotal(draft.items)
+        });
         fromBillingAssistant.current = true;
         setSaleDate(draft.date);
         setSelectedCustomer(draft.customerId);
         setItems(draft.items);
-        setPrevBalance(draft.prevBalance);
+        setPrevBalance(preview?.prevBalance ?? 0);
+        setRemainingCents(draft.remainingCents);
         setPrevBalanceMemo('');
         setPaidAmount(0);
     };
@@ -124,9 +135,9 @@ export default function NewSale() {
         try {
             const sales = drafts.map(draft => {
                 const subtotal = Number(calculateSubtotal(draft.items).toFixed(2));
-                const grandTotal = Number((subtotal + draft.prevBalance).toFixed(2));
+                const grandTotal = subtotal;
                 if (!Number.isFinite(grandTotal)) throw new Error('The bill total is too large.');
-                return { ...draft, subtotal, grandTotal, paidAmount: 0, memo: '' };
+                return { ...draft, subtotal, grandTotal, prevBalance: 0, paidAmount: 0, memo: '' };
             });
             return await saveAssistantSales(db, sales);
         } finally {
@@ -173,7 +184,11 @@ export default function NewSale() {
                 alert('Sale updated!');
             } else {
                 if (fromBillingAssistant.current) {
-                    const { ids } = await saveAssistantSales(db, [saleData]);
+                    const { ids } = await saveAssistantSales(db, [{
+                        ...saleData,
+                        remainingCents,
+                        expectedPreviousCents: isReconciling ? Math.round(prevBalance * 100) : undefined
+                    }]);
                     if (!ids.length) {
                         alert('Duplicate bill. This invoice is already in Sales.');
                         return;
@@ -204,7 +219,7 @@ export default function NewSale() {
 
         } catch (error) {
             console.error('Error saving sale:', error);
-            alert('Failed to save sale');
+            alert(fromBillingAssistant.current ? error.message : 'Failed to save sale');
         } finally {
             saveInProgress.current = false;
             setIsSaving(false);
@@ -365,6 +380,7 @@ export default function NewSale() {
                                 <input
                                     type="date"
                                     value={saleDate}
+                                    disabled={isReconciling}
                                     onChange={(e) => setSaleDate(e.target.value)}
                                     className="w-full p-2 border rounded-md"
                                 />
@@ -373,6 +389,7 @@ export default function NewSale() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
                                 <select
                                     value={selectedCustomer}
+                                    disabled={isReconciling}
                                     onChange={(e) => setSelectedCustomer(e.target.value)}
                                     className="w-full p-2 border rounded-md"
                                 >
@@ -532,6 +549,7 @@ export default function NewSale() {
                                     step="0.01"
                                     placeholder="Amount"
                                     value={prevBalance}
+                                    readOnly={isReconciling}
                                     onChange={(e) => setPrevBalance(e.target.value)}
                                     className="w-32 p-2 border rounded-md text-right"
                                 />
@@ -545,7 +563,8 @@ export default function NewSale() {
                                     type="number"
                                     step="0.01"
                                     placeholder="0.00"
-                                    value={paidAmount}
+                                    value={isReconciling ? reconciliationPayment.toFixed(2) : paidAmount}
+                                    readOnly={isReconciling}
                                     onChange={(e) => setPaidAmount(e.target.value)}
                                     className="w-32 p-2 border rounded-md text-right font-bold text-green-700"
                                 />
@@ -556,6 +575,12 @@ export default function NewSale() {
                             <span className="font-bold">Grand Total</span>
                             <span className="font-bold text-blue-600">RM {calculateGrandTotal().toFixed(2)}</span>
                         </div>
+                        {isReconciling && (
+                            <div className="flex justify-between items-center border-t pt-4">
+                                <span className="font-bold">Remaining Balance</span>
+                                <span className="font-bold">RM {(remainingCents / 100).toFixed(2)}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

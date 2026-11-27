@@ -189,9 +189,11 @@ function parseBill(itemLines, date, customers, products, codes) {
 
     const lastLine = itemLines.at(-1);
     const balanceMatch = lastLine?.text.match(BALANCE_LINE);
-    const prevBalance = balanceMatch ? Number(balanceMatch[1]) : 0;
+    const remainingCents = balanceMatch ? Math.round(Number(balanceMatch[1]) * 100) : undefined;
     if (balanceMatch) {
-        if (!Number.isFinite(prevBalance)) throw new Error(`Line ${lastLine.number}: Enter a valid previous balance.`);
+        if (!Number.isSafeInteger(remainingCents) || Number(balanceMatch[1]) < 0) {
+            throw new Error(`Line ${lastLine.number}: Enter a valid remaining balance.`);
+        }
         itemLines.pop();
     }
 
@@ -225,7 +227,7 @@ function parseBill(itemLines, date, customers, products, codes) {
         throw new Error(`Line ${itemLines[0].number}: Include at least one item with a nonzero amount for this bill.`);
     }
 
-    return { date, customerId: customer.id, items, prevBalance };
+    return { date, customerId: customer.id, items, remainingCents };
 }
 
 
